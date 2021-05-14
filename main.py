@@ -2,7 +2,7 @@ __winc_id__ = 'ae539110d03e49ea8738fd413ac44ba8'
 __human_name__ = 'files'
 from pathlib import Path
 import os
-# import shutil 
+import shutil 
 import zipfile
 path = os.getcwd()
 cache_path_files = path + '\\cache'
@@ -87,21 +87,18 @@ def cached_files():
 def find_password(file_list):
   list_directories  = os.listdir()
   
+  
   list = cached_files()
   for file in list:
     with open(file) as f:
       if 'password' in f.read():
         print(f'found in {file}')
-        #txt = open(file)
-        #if 'password' in f:
-        
-        with open(str(file)) as p:
-          for lines in p:
-            if 'password' in lines:
-              print(lines)  
-        
+        txt=open(str(file))
+        for lines in txt:
+          if 'password' in lines:
+            print(lines)  
         
         return lines
        
     
-find_password(cached_files)
+#find_password(cached_files)
