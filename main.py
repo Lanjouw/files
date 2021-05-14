@@ -17,12 +17,12 @@ def clean_cache():
   list_directories  = os.listdir()
   # print(list_directories)
   if 'cache' in list_directories:
-    path= os.getcwd()
-    new_path = os.getcwd() + '\\cache'
-    [f.unlink() for f in Path(new_path).glob("*") if f.is_file()] 
-    os.rmdir('cache')
+    #path= os.getcwd()
+    #new_path = os.getcwd() + '\\cache'
+    #[f.unlink() for f in Path(new_path).glob("*") if f.is_file()] 
+    #os.rmdir('cache')
     
-    #shutil.rmtree('cache', ignore_errors=True)
+    shutil.rmtree('cache', ignore_errors=True)
     os.mkdir('cache')
   else:
     os.mkdir('cache')
