@@ -17,10 +17,6 @@ def clean_cache():
   list_directories  = os.listdir()
   # print(list_directories)
   if 'cache' in list_directories:
-    #path= os.getcwd()
-    #new_path = os.getcwd() + '\\cache'
-    #[f.unlink() for f in Path(new_path).glob("*") if f.is_file()] 
-    #os.rmdir('cache')
     
     shutil.rmtree('cache', ignore_errors=True)
     os.mkdir('cache')
@@ -38,23 +34,14 @@ def clean_cache():
 
 def cache_zip(zip_file_path,cache_path):
   
-  
-  if os.path.exists(cache_path):
-    #print(os.getcwd())
     clean_cache()
-    os.chdir(cache_path)
-    new_cache_path = cache_path
+    
     with zipfile.ZipFile(zip_file_path, 'r')as zip_ref:
-      zip_ref.extractall(new_cache_path)
-  else:
-    new_cache_path = cache_path
-    os.makedirs(new_cache_path)
-    with zipfile.ZipFile(zip_file_path, 'r')as zip_ref:
-      zip_ref.extractall(new_cache_path)
-    print('no')
+      zip_ref.extractall(cache_path)
+  
   #print(os.getcwd())
 
-#cache_zip(r'C:\\Users\\OttoLanjouw\\Downloads\\winc\\files\\data.zip',r'C:\\Users\\OttoLanjouw\\Downloads\winc\\files\\cache')
+cache_zip(r'C:\\Users\\OttoLanjouw\\Downloads\\winc\\files\\data.zip',r'C:\\Users\\OttoLanjouw\\Downloads\winc\\files\\cache')
 
 # step 3
 # cached_files: takes no arguments and returns a list of all the files in the cache. 
@@ -85,24 +72,19 @@ def cached_files():
 # Once found, find_password should return this password string.
 
 def find_password(file_list):
-  list_directories  = os.listdir()
-  
-  
+    
   list = cached_files()
   for file in list:
     with open(file) as f:
       if 'password' in f.read():
-        print(f'found in {file}')
-        #txt = open(file)
-        #if 'password' in f:
-        
         with open(str(file)) as p:
           for lines in p:
             if 'password' in lines:
-              print(lines)  
-        
-        
-        return lines
+              password = lines.strip('password: ')
+              password = password.strip()
+              #print(lines)
+              print(password)
+        return password
+
        
-    
-find_password(cached_files)
+find_password(1)
