@@ -93,12 +93,16 @@ def find_password(file_list):
     with open(file) as f:
       if 'password' in f.read():
         print(f'found in {file}')
-        txt=open(str(file))
-        for lines in txt:
-          if 'password' in lines:
-            print(lines)  
+        #txt = open(file)
+        #if 'password' in f:
+        
+        with open(str(file)) as p:
+          for lines in p:
+            if 'password' in lines:
+              print(lines)  
+        
         
         return lines
        
     
-#find_password(cached_files)
+find_password(cached_files)
