@@ -669,24 +669,22 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
 
         if (i_DetailedLog.GetYesNo()) {
             SCString msg;
-            msg.Format("  Body: Open=%.2f Close=%.2f Size=%.2f MinReq=%.2f BodyOK=%d",
-                open, close, bodySize, minBodySize, (bodySize >= minBodySize ? 1 : 0));
+            msg.Format("  Body: Open=%.2f Close=%.2f Size=%.2f (NO LONGER CHECKED)",
+                open, close, bodySize);
             sc.AddMessageToLog(msg, 0);
             
             if (p_15s->VH_Active) {
-                msg.Format("  VH: Active, Peak=%.2f@%d, ConfirmLvl=%.2f, Close<Lvl=%d, BodyOK=%d, CanPlot=%d => Confirmed=%d",
+                msg.Format("  VH: Active, Peak=%.2f@%d, ConfirmLvl=%.2f, Close<Lvl=%d, CanPlot=%d => Confirmed=%d",
                     p_15s->VH_PeakHigh, p_15s->VH_PeakBar, p_15s->VH_ConfirmLevel,
                     (close < p_15s->VH_ConfirmLevel ? 1 : 0),
-                    (bodySize >= minBodySize ? 1 : 0),
                     (p_15s->WhatToPlotNext == s_TimeframeScanner::PLOT_VH ? 1 : 0),
                     vh_confirmed);
                 sc.AddMessageToLog(msg, 0);
             }
             if (p_15s->VL_Active) {
-                msg.Format("  VL: Active, Trough=%.2f@%d, ConfirmLvl=%.2f, Close>Lvl=%d, BodyOK=%d, CanPlot=%d => Confirmed=%d",
+                msg.Format("  VL: Active, Trough=%.2f@%d, ConfirmLvl=%.2f, Close>Lvl=%d, CanPlot=%d => Confirmed=%d",
                     p_15s->VL_TroughLow, p_15s->VL_TroughBar, p_15s->VL_ConfirmLevel,
                     (close > p_15s->VL_ConfirmLevel ? 1 : 0),
-                    (bodySize >= minBodySize ? 1 : 0),
                     (p_15s->WhatToPlotNext == s_TimeframeScanner::PLOT_VL ? 1 : 0),
                     vl_confirmed);
                 sc.AddMessageToLog(msg, 0);
