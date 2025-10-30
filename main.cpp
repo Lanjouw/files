@@ -96,6 +96,10 @@ SCSFExport scsf_VHVLTrendIndicator_Fixed(SCStudyInterfaceRef sc)
     if (p_TrafficLight == NULL) {
         p_TrafficLight = new s_TrafficLight();
         sc.SetPersistentPointer(1, p_TrafficLight);
+        
+        if (i_DetailedLog.GetYesNo()) {
+            sc.AddMessageToLog("=== INITIALIZED: Traffic Light created, NextPlot=VH ===", 0);
+        }
     }
     if (p_VH_Search == NULL) {
         p_VH_Search = new s_VH_Search();
@@ -104,6 +108,25 @@ SCSFExport scsf_VHVLTrendIndicator_Fixed(SCStudyInterfaceRef sc)
     if (p_VL_Search == NULL) {
         p_VL_Search = new s_VL_Search();
         sc.SetPersistentPointer(3, p_VL_Search);
+    }
+    
+    // KRITIEK: Bij full recalculate, wis alle oude plots en reset state
+    if (sc.Index == 0) {
+        if (i_DetailedLog.GetYesNo()) {
+            sc.AddMessageToLog("=== RECALCULATE DETECTED: Clearing all plots and resetting state ===", 0);
+        }
+        
+        // Wis alle oude plots
+        for (int j = 0; j < sc.ArraySize; j++) {
+            s_VH[j] = 0.0f;
+            s_VL[j] = 0.0f;
+        }
+        
+        // Reset alle state
+        p_TrafficLight->NextPlotType = PT_VH;
+        p_TrafficLight->LastProcessedBar = -1;
+        *p_VH_Search = s_VH_Search();
+        *p_VL_Search = s_VL_Search();
     }
 
     // Cleanup bij study removal
