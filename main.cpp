@@ -923,50 +923,62 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
     } // Einde processing block
 
     // ========================================================================
-    // STAP 3: VISUALISATIE - 1 LIJN (van "next plot" search)
+    // STAP 3: VISUALISATIE - CONFIRM LIJNEN (alle timeframes)
     // ========================================================================
     if (i == sc.ArraySize - 1) {
-        const int LINE_NUMBER = 200001;
-        
-        sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, LINE_NUMBER);
-        
-        // Teken alleen de lijn van de search die op het punt staat te plotten
-        bool shouldDrawLine = false;
-        int lineBeginBar = -1;
-        float lineValue = 0.0f;
-        
-        if (p_15s->WhatToPlotNext == s_TimeframeScanner::PLOT_VH && p_15s->VH_Active) {
-            // Toon VH confirm lijn (want we wachten op VH plot)
-            shouldDrawLine = true;
-            lineBeginBar = p_15s->VH_ConfirmLevelBar;
-            lineValue = p_15s->VH_ConfirmLevel;
-        } else if (p_15s->WhatToPlotNext == s_TimeframeScanner::PLOT_VL && p_15s->VL_Active) {
-            // Toon VL confirm lijn (want we wachten op VL plot)
-            shouldDrawLine = true;
-            lineBeginBar = p_15s->VL_ConfirmLevelBar;
-            lineValue = p_15s->VL_ConfirmLevel;
-        }
-        
-        if (shouldDrawLine) {
-            int lineEndBar = p_15s->LastProcessedBar;
-            if (lineEndBar < lineBeginBar + 3) {
-                lineEndBar = lineBeginBar + 3;
+        // Helper functie om lijn te tekenen
+        auto DrawConfirmLine = [&](int lineNumber, s_TimeframeScanner* scanner, int color) {
+            sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, lineNumber);
+            
+            bool shouldDrawLine = false;
+            int lineBeginBar = -1;
+            float lineValue = 0.0f;
+            
+            if (scanner->WhatToPlotNext == s_TimeframeScanner::PLOT_VH && scanner->VH_Active) {
+                shouldDrawLine = true;
+                lineBeginBar = scanner->VH_ConfirmLevelBar;
+                lineValue = scanner->VH_ConfirmLevel;
+            } else if (scanner->WhatToPlotNext == s_TimeframeScanner::PLOT_VL && scanner->VL_Active) {
+                shouldDrawLine = true;
+                lineBeginBar = scanner->VL_ConfirmLevelBar;
+                lineValue = scanner->VL_ConfirmLevel;
             }
             
-            s_UseTool tool;
-            tool.DrawingType = DRAWING_LINE;
-            tool.LineNumber = LINE_NUMBER;
-            tool.AddMethod = UTAM_ADD_OR_ADJUST;
-            tool.BeginIndex = lineBeginBar;
-            tool.BeginValue = lineValue;
-            tool.EndIndex = lineEndBar;
-            tool.EndValue = lineValue;
-            tool.Color = RGB(0, 0, 0);  // Black default for confirm line
-            tool.LineWidth = i_LineWidth.GetInt();
-            tool.LineStyle = LINESTYLE_SOLID;
-            tool.ExtendLeft = false;
-            tool.ExtendRight = false;
-            sc.UseTool(tool);
+            if (shouldDrawLine && lineBeginBar >= 0) {
+                int lineEndBar = scanner->LastProcessedBar;
+                if (lineEndBar < lineBeginBar + 3) {
+                    lineEndBar = lineBeginBar + 3;
+                }
+                
+                s_UseTool tool;
+                tool.DrawingType = DRAWING_LINE;
+                tool.LineNumber = lineNumber;
+                tool.AddMethod = UTAM_ADD_OR_ADJUST;
+                tool.BeginIndex = lineBeginBar;
+                tool.BeginValue = lineValue;
+                tool.EndIndex = i;  // Altijd tot nu
+                tool.EndValue = lineValue;
+                tool.Color = color;
+                tool.LineWidth = i_LineWidth.GetInt();
+                tool.LineStyle = LINESTYLE_SOLID;
+                tool.ExtendLeft = false;
+                tool.ExtendRight = false;
+                sc.UseTool(tool);
+            }
+        };
+        
+        // Teken lijnen voor alle enabled timeframes
+        if (i_15s_Enabled.GetYesNo()) {
+            DrawConfirmLine(200001, p_15s, RGB(0, 0, 0));  // Black
+        }
+        if (i_1m_Enabled.GetYesNo()) {
+            DrawConfirmLine(200002, p_1m, i_1m_SymbolColor.GetColor());  // 1min color
+        }
+        if (i_5m_Enabled.GetYesNo()) {
+            DrawConfirmLine(200003, p_5m, i_5m_SymbolColor.GetColor());  // 5min color
+        }
+        if (i_15m_Enabled.GetYesNo()) {
+            DrawConfirmLine(200004, p_15m, i_15m_SymbolColor.GetColor());  // 15min color
         }
     }
     } // End 15-sec processing
