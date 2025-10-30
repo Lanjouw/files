@@ -122,17 +122,38 @@ SCSFExport scsf_VHVLTrendIndicator_Fixed(SCStudyInterfaceRef sc)
     if (i < 2) return;
 
     // ========================================================================
-    // STAP 1: BEVESTIGING CHECKEN (op basis van VORIGE gesloten candle)
+    // KRITIEK: Werk alleen met GESLOTEN bars!
     // ========================================================================
-    float prev_close = sc.Close[i-1];
+    // In realtime is bar i de "developing bar" - die is NOG NIET gesloten.
+    // We mogen alleen bevestigen en updaten op basis van GESLOTEN bars.
     
-    bool vh_isConfirmed = (p_VH_Search->IsActive && 
-                          prev_close < p_VH_Search->ConfirmLevel &&
-                          p_TrafficLight->NextPlotType == PT_VH);
+    // Bepaal welke bar we moeten analyseren
+    int barToAnalyze = i;
+    bool isLastBar = (i == sc.ArraySize - 1);
     
-    bool vl_isConfirmed = (p_VL_Search->IsActive && 
-                          prev_close > p_VL_Search->ConfirmLevel &&
-                          p_TrafficLight->NextPlotType == PT_VL);
+    // Als we op de laatste bar zijn, gebruik dan de VORIGE (gesloten) bar
+    if (isLastBar && i > 0) {
+        barToAnalyze = i - 1;
+    }
+
+    // ========================================================================
+    // STAP 1: BEVESTIGING CHECKEN (alleen op GESLOTEN bars)
+    // ========================================================================
+    bool vh_isConfirmed = false;
+    bool vl_isConfirmed = false;
+    
+    // Alleen bevestigen als we een nieuwe gesloten bar hebben
+    if (!isLastBar || sc.GetBarHasClosedStatus(i) == BHCS_BAR_HAS_CLOSED) {
+        float close = sc.Close[barToAnalyze];
+        
+        vh_isConfirmed = (p_VH_Search->IsActive && 
+                         close < p_VH_Search->ConfirmLevel &&
+                         p_TrafficLight->NextPlotType == PT_VH);
+        
+        vl_isConfirmed = (p_VL_Search->IsActive && 
+                         close > p_VL_Search->ConfirmLevel &&
+                         p_TrafficLight->NextPlotType == PT_VL);
+    }
 
     // Bevestigingen verwerken
     if (vh_isConfirmed) {
@@ -160,51 +181,58 @@ SCSFExport scsf_VHVLTrendIndicator_Fixed(SCStudyInterfaceRef sc)
     }
 
     // ========================================================================
-    // STAP 2: PARALLELLE ZOEKTOCHTEN UPDATEN (met HUIDIGE candle data)
+    // STAP 2: PARALLELLE ZOEKTOCHTEN UPDATEN (alleen met GESLOTEN bars)
     // ========================================================================
-    float high = sc.High[i];
-    float low = sc.Low[i];
-    float close = sc.Close[i];
-    float prev_high = sc.High[i-1];
-    float prev_low = sc.Low[i-1];
-
-    // --- VH ZOEKTOCHT (altijd actief) ---
-    if (!p_VH_Search->IsActive) {
-        // Start nieuwe VH zoektocht: close > prev_high
-        if (close > prev_high) {
-            p_VH_Search->IsActive = true;
-            p_VH_Search->PeakHigh = high;
-            p_VH_Search->PeakBar = i;
-            p_VH_Search->ConfirmLevel = low;           // Low van anker candle
-            p_VH_Search->ConfirmLevelBar = i;          // Dit is de anker candle
-        }
+    // Skip update als we op de developing bar zijn EN die nog niet gesloten is
+    if (isLastBar && sc.GetBarHasClosedStatus(i) != BHCS_BAR_HAS_CLOSED) {
+        // Developing bar - niet gebruiken voor search updates
+        // Ga direct naar visualisatie
     } else {
-        // Update bestaande VH zoektocht: hogere high gevonden
-        if (high > p_VH_Search->PeakHigh) {
-            p_VH_Search->PeakHigh = high;
-            p_VH_Search->PeakBar = i;
-            p_VH_Search->ConfirmLevel = low;           // Low van nieuwe anker candle
-            p_VH_Search->ConfirmLevelBar = i;          // Nieuwe anker candle
-        }
-    }
+        // Gesloten bar - veilig om te gebruiken
+        float high = sc.High[barToAnalyze];
+        float low = sc.Low[barToAnalyze];
+        float close = sc.Close[barToAnalyze];
+        float prev_high = sc.High[barToAnalyze - 1];
+        float prev_low = sc.Low[barToAnalyze - 1];
 
-    // --- VL ZOEKTOCHT (altijd actief) ---
-    if (!p_VL_Search->IsActive) {
-        // Start nieuwe VL zoektocht: close < prev_low
-        if (close < prev_low) {
-            p_VL_Search->IsActive = true;
-            p_VL_Search->TroughLow = low;
-            p_VL_Search->TroughBar = i;
-            p_VL_Search->ConfirmLevel = high;          // High van anker candle
-            p_VL_Search->ConfirmLevelBar = i;          // Dit is de anker candle
+        // --- VH ZOEKTOCHT (altijd actief) ---
+        if (!p_VH_Search->IsActive) {
+            // Start nieuwe VH zoektocht: close > prev_high
+            if (close > prev_high) {
+                p_VH_Search->IsActive = true;
+                p_VH_Search->PeakHigh = high;
+                p_VH_Search->PeakBar = barToAnalyze;
+                p_VH_Search->ConfirmLevel = low;           // Low van anker candle
+                p_VH_Search->ConfirmLevelBar = barToAnalyze;  // Dit is de anker candle
+            }
+        } else {
+            // Update bestaande VH zoektocht: hogere high gevonden
+            if (high > p_VH_Search->PeakHigh) {
+                p_VH_Search->PeakHigh = high;
+                p_VH_Search->PeakBar = barToAnalyze;
+                p_VH_Search->ConfirmLevel = low;           // Low van nieuwe anker candle
+                p_VH_Search->ConfirmLevelBar = barToAnalyze;  // Nieuwe anker candle
+            }
         }
-    } else {
-        // Update bestaande VL zoektocht: lagere low gevonden
-        if (low < p_VL_Search->TroughLow) {
-            p_VL_Search->TroughLow = low;
-            p_VL_Search->TroughBar = i;
-            p_VL_Search->ConfirmLevel = high;          // High van nieuwe anker candle
-            p_VL_Search->ConfirmLevelBar = i;          // Nieuwe anker candle
+
+        // --- VL ZOEKTOCHT (altijd actief) ---
+        if (!p_VL_Search->IsActive) {
+            // Start nieuwe VL zoektocht: close < prev_low
+            if (close < prev_low) {
+                p_VL_Search->IsActive = true;
+                p_VL_Search->TroughLow = low;
+                p_VL_Search->TroughBar = barToAnalyze;
+                p_VL_Search->ConfirmLevel = high;          // High van anker candle
+                p_VL_Search->ConfirmLevelBar = barToAnalyze;  // Dit is de anker candle
+            }
+        } else {
+            // Update bestaande VL zoektocht: lagere low gevonden
+            if (low < p_VL_Search->TroughLow) {
+                p_VL_Search->TroughLow = low;
+                p_VL_Search->TroughBar = barToAnalyze;
+                p_VL_Search->ConfirmLevel = high;          // High van nieuwe anker candle
+                p_VL_Search->ConfirmLevelBar = barToAnalyze;  // Nieuwe anker candle
+            }
         }
     }
 
