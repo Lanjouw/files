@@ -639,9 +639,27 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         p_5m_CurrentBar->Reset();
         p_15m_CurrentBar->Reset();
         
+        // CLEAR alle subgraphs (oude plots verwijderen!)
+        for (int j = 0; j < sc.ArraySize; j++) {
+            sg_15s_VH[j] = 0;
+            sg_15s_VL[j] = 0;
+            sg_1m_VH[j] = 0;
+            sg_1m_VL[j] = 0;
+            sg_5m_VH[j] = 0;
+            sg_5m_VL[j] = 0;
+            sg_15m_VH[j] = 0;
+            sg_15m_VL[j] = 0;
+        }
+        
+        // Clear alle confirm lijnen
+        sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 200001);
+        sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 200002);
+        sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 200003);
+        sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 200004);
+        
         if (i_DetailedLog.GetYesNo()) {
             SCString msg;
-            msg.Format("RECALCULATION DETECTED at bar %d (LastProcessed was %d) - FULL RESET ALL TIMEFRAMES", i, p_15s->LastProcessedBar);
+            msg.Format("RECALCULATION DETECTED at bar %d (LastProcessed was %d) - FULL RESET ALL TIMEFRAMES + CLEARED PLOTS", i, p_15s->LastProcessedBar);
             sc.AddMessageToLog(msg, 0);
         }
     }
