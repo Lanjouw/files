@@ -18,7 +18,8 @@ struct s_TimeframeScanner {
     int VH_PeakBar = -1;              // Bar index in EIGEN timeframe
     int VH_PeakBar_15s = -1;          // Exacte 15-sec bar met hoogste high (voor multi-TF)
     float VH_ConfirmLevel = 0.0f;     // Low van de anchor bar
-    int VH_ConfirmLevelBar = -1;      // Bar waar de confirm level van is
+    int VH_ConfirmLevelBar = -1;      // Bar waar de confirm level van is (eigen TF)
+    int VH_ConfirmLevelBar_15s = -1;  // Confirm level bar in 15-sec (voor lijn tekenen!)
     int VH_StartBar_15s = -1;         // Start van 15-sec range voor deze search
     
     // VL zoektocht (loopt ALTIJD parallel)
@@ -27,7 +28,8 @@ struct s_TimeframeScanner {
     int VL_TroughBar = -1;            // Bar index in EIGEN timeframe
     int VL_TroughBar_15s = -1;        // Exacte 15-sec bar met laagste low (voor multi-TF)
     float VL_ConfirmLevel = 0.0f;     // High van de anchor bar
-    int VL_ConfirmLevelBar = -1;      // Bar waar de confirm level van is
+    int VL_ConfirmLevelBar = -1;      // Bar waar de confirm level van is (eigen TF)
+    int VL_ConfirmLevelBar_15s = -1;  // Confirm level bar in 15-sec (voor lijn tekenen!)
     int VL_StartBar_15s = -1;         // Start van 15-sec range voor deze search
     
     int LastProcessedBar = -1;
@@ -282,6 +284,7 @@ void ScanHigherTFBar(
             scanner->VH_PeakBar = barIndex;
             scanner->VH_ConfirmLevel = low;
             scanner->VH_ConfirmLevelBar = barIndex;
+            scanner->VH_ConfirmLevelBar_15s = tfBar->StartBar_15s;  // Begin van deze TF bar
             // Start 15-sec range vanaf laatste VL of vanaf start
             scanner->VH_StartBar_15s = (scanner->LastVL_PlotBar_15s >= 0) ? 
                                        scanner->LastVL_PlotBar_15s : tfBar->StartBar_15s;
@@ -302,6 +305,7 @@ void ScanHigherTFBar(
         if (close > prev_high && bodySize >= minBodySize) {
             scanner->VH_ConfirmLevel = low;
             scanner->VH_ConfirmLevelBar = barIndex;
+            scanner->VH_ConfirmLevelBar_15s = tfBar->StartBar_15s;  // Begin van deze TF bar
         }
     }
     
@@ -312,6 +316,7 @@ void ScanHigherTFBar(
             scanner->VL_TroughBar = barIndex;
             scanner->VL_ConfirmLevel = high;
             scanner->VL_ConfirmLevelBar = barIndex;
+            scanner->VL_ConfirmLevelBar_15s = tfBar->StartBar_15s;  // Begin van deze TF bar
             // Start 15-sec range vanaf laatste VH of vanaf start
             scanner->VL_StartBar_15s = (scanner->LastVH_PlotBar_15s >= 0) ? 
                                        scanner->LastVH_PlotBar_15s : tfBar->StartBar_15s;
@@ -332,6 +337,7 @@ void ScanHigherTFBar(
         if (close < prev_low && bodySize >= minBodySize) {
             scanner->VL_ConfirmLevel = high;
             scanner->VL_ConfirmLevelBar = barIndex;
+            scanner->VL_ConfirmLevelBar_15s = tfBar->StartBar_15s;  // Begin van deze TF bar
         }
     }
     
@@ -931,32 +937,32 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
             sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, lineNumber);
             
             bool shouldDrawLine = false;
-            int lineBeginBar = -1;
+            int lineBeginBar_15s = -1;  // 15-SEC bar index!
             float lineValue = 0.0f;
             
             if (scanner->WhatToPlotNext == s_TimeframeScanner::PLOT_VH && scanner->VH_Active) {
                 shouldDrawLine = true;
-                lineBeginBar = scanner->VH_ConfirmLevelBar;
+                lineBeginBar_15s = scanner->VH_ConfirmLevelBar_15s;  // Gebruik 15s bar index!
                 lineValue = scanner->VH_ConfirmLevel;
             } else if (scanner->WhatToPlotNext == s_TimeframeScanner::PLOT_VL && scanner->VL_Active) {
                 shouldDrawLine = true;
-                lineBeginBar = scanner->VL_ConfirmLevelBar;
+                lineBeginBar_15s = scanner->VL_ConfirmLevelBar_15s;  // Gebruik 15s bar index!
                 lineValue = scanner->VL_ConfirmLevel;
             }
             
-            if (shouldDrawLine && lineBeginBar >= 0) {
-                int lineEndBar = scanner->LastProcessedBar;
-                if (lineEndBar < lineBeginBar + 3) {
-                    lineEndBar = lineBeginBar + 3;
+            if (shouldDrawLine && lineBeginBar_15s >= 0) {
+                int lineEndBar = i;  // Altijd tot nu (current 15s bar)
+                if (lineEndBar < lineBeginBar_15s + 3) {
+                    lineEndBar = lineBeginBar_15s + 3;
                 }
                 
                 s_UseTool tool;
                 tool.DrawingType = DRAWING_LINE;
                 tool.LineNumber = lineNumber;
                 tool.AddMethod = UTAM_ADD_OR_ADJUST;
-                tool.BeginIndex = lineBeginBar;
+                tool.BeginIndex = lineBeginBar_15s;
                 tool.BeginValue = lineValue;
-                tool.EndIndex = i;  // Altijd tot nu
+                tool.EndIndex = lineEndBar;
                 tool.EndValue = lineValue;
                 tool.Color = color;
                 tool.LineWidth = i_LineWidth.GetInt();
