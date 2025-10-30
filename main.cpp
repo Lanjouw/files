@@ -1086,8 +1086,11 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         
         // Check if we should start a new 1min bar
         if (ShouldStartNewBar(currentBarTime, 1, p_1m_CurrentBar->StartTime)) {
-            // Process the completed bar
-            if (p_1m_CurrentBar->IsComplete) {
+            // Mark vorige bar als compleet EN process it
+            p_1m_CurrentBar->IsComplete = true;
+            
+            // Process the completed bar (if it has data)
+            if (p_1m_CurrentBar->StartTime != 0) {
                 ScanHigherTFBar(sc, p_1m, p_1m_CurrentBar, sg_1m_VH, sg_1m_VL,
                                i_1m_SymbolOffset.GetInt(), "1MIN", i_DetailedLog.GetYesNo());
             }
@@ -1106,7 +1109,6 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
             p_1m_CurrentBar->EndBar_15s = i;
             p_1m_CurrentBar->HighBar_15s = i;
             p_1m_CurrentBar->LowBar_15s = i;
-            p_1m_CurrentBar->IsComplete = true;  // Wordt compleet bij volgende bar
         } else {
             // Update existing bar
             if (sc.High[i] > p_1m_CurrentBar->High) {
