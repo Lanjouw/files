@@ -355,8 +355,8 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
                 sc.AddMessageToLog(msg, 0);
             }
         } else {
-            // Update bestaande VH search: hogere high EN body >= 2 ticks
-            if (high > p_15s->VH_PeakHigh && bodySize >= minBodySize) {
+            // Update bestaande VH search: hogere high EN close > prev_high EN body >= 2 ticks
+            if (high > p_15s->VH_PeakHigh && close > prev_high && bodySize >= minBodySize) {
                 p_15s->VH_PeakHigh = high;
                 p_15s->VH_PeakBar = barToProcess;
                 p_15s->VH_ConfirmLevel = low;
@@ -364,14 +364,14 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
                 
                 if (i_DetailedLog.GetYesNo()) {
                     SCString msg;
-                    msg.Format("  VH UPDATED: Bar %d, NewPeak=%.2f, NewConfirmLvl=%.2f, Body=%.2f",
-                        barToProcess, high, low, bodySize);
+                    msg.Format("  VH UPDATED: Bar %d, Close(%.2f)>PrevHigh(%.2f), NewPeak=%.2f, NewConfirmLvl=%.2f, Body=%.2f",
+                        barToProcess, close, prev_high, high, low, bodySize);
                     sc.AddMessageToLog(msg, 0);
                 }
             } else if (high > p_15s->VH_PeakHigh && i_DetailedLog.GetYesNo()) {
                 SCString msg;
-                msg.Format("  VH NOT UPDATED: Bar %d, Higher high but body too small (%.2f < %.2f)",
-                    barToProcess, bodySize, minBodySize);
+                msg.Format("  VH NOT UPDATED: Bar %d, Higher high but Close(%.2f)<=PrevHigh(%.2f) or body too small (%.2f < %.2f)",
+                    barToProcess, close, prev_high, bodySize, minBodySize);
                 sc.AddMessageToLog(msg, 0);
             }
         }
@@ -399,8 +399,8 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
                 sc.AddMessageToLog(msg, 0);
             }
         } else {
-            // Update bestaande VL search: lagere low EN body >= 2 ticks
-            if (low < p_15s->VL_TroughLow && bodySize >= minBodySize) {
+            // Update bestaande VL search: lagere low EN close < prev_low EN body >= 2 ticks
+            if (low < p_15s->VL_TroughLow && close < prev_low && bodySize >= minBodySize) {
                 p_15s->VL_TroughLow = low;
                 p_15s->VL_TroughBar = barToProcess;
                 p_15s->VL_ConfirmLevel = high;
@@ -408,14 +408,14 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
                 
                 if (i_DetailedLog.GetYesNo()) {
                     SCString msg;
-                    msg.Format("  VL UPDATED: Bar %d, NewTrough=%.2f, NewConfirmLvl=%.2f, Body=%.2f",
-                        barToProcess, low, high, bodySize);
+                    msg.Format("  VL UPDATED: Bar %d, Close(%.2f)<PrevLow(%.2f), NewTrough=%.2f, NewConfirmLvl=%.2f, Body=%.2f",
+                        barToProcess, close, prev_low, low, high, bodySize);
                     sc.AddMessageToLog(msg, 0);
                 }
             } else if (low < p_15s->VL_TroughLow && i_DetailedLog.GetYesNo()) {
                 SCString msg;
-                msg.Format("  VL NOT UPDATED: Bar %d, Lower low but body too small (%.2f < %.2f)",
-                    barToProcess, bodySize, minBodySize);
+                msg.Format("  VL NOT UPDATED: Bar %d, Lower low but Close(%.2f)>=PrevLow(%.2f) or body too small (%.2f < %.2f)",
+                    barToProcess, close, prev_low, bodySize, minBodySize);
                 sc.AddMessageToLog(msg, 0);
             }
         }
