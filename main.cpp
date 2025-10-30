@@ -57,7 +57,7 @@ SCSFExport scsf_VHVLTrendIndicator_Fixed(SCStudyInterfaceRef sc)
         i_ArrowOffset.SetInt(3);
         
         i_LineColor.Name = "Anchor Line Color";
-        i_LineColor.SetColor(RGB(255, 255, 0));
+        i_LineColor.SetColor(RGB(0, 0, 0));
         
         i_LineWidth.Name = "Anchor Line Width";
         i_LineWidth.SetInt(1);
@@ -261,17 +261,22 @@ SCSFExport scsf_VHVLTrendIndicator_Fixed(SCStudyInterfaceRef sc)
 
         // BELANGRIJK: Lijn eindpunt moet LAATSTE GESLOTEN BAR zijn, niet de developing bar
         // Gebruik de laatst verwerkte bar als eindpunt
+        // EN: Zorg dat de lijn minimaal 3 bars verder gaat dan de ankercandle voor zichtbaarheid
         int lineEndBar = p_TrafficLight->LastProcessedBar;
 
         // --- VH LIJN ---
         if (p_VH_Search->IsActive) {
+            // Bereken minimaal eindpunt: ankercandle + 3 bars
+            int minEndBar = p_VH_Search->ConfirmLevelBar + 3;
+            int vh_EndBar = (lineEndBar > minEndBar) ? lineEndBar : minEndBar;
+            
             s_UseTool VH_Line;
             VH_Line.DrawingType = DRAWING_LINE;
             VH_Line.LineNumber = LINE_NUMBER_VH;
             VH_Line.AddMethod = UTAM_ADD_OR_ADJUST;
             VH_Line.BeginIndex = p_VH_Search->ConfirmLevelBar;
             VH_Line.BeginValue = p_VH_Search->ConfirmLevel;
-            VH_Line.EndIndex = lineEndBar;  // Laatste gesloten bar
+            VH_Line.EndIndex = vh_EndBar;  // Minimaal 3 bars verder
             VH_Line.EndValue = p_VH_Search->ConfirmLevel;
             VH_Line.Color = i_LineColor.GetColor();
             VH_Line.LineWidth = i_LineWidth.GetInt();
@@ -283,13 +288,17 @@ SCSFExport scsf_VHVLTrendIndicator_Fixed(SCStudyInterfaceRef sc)
 
         // --- VL LIJN ---
         if (p_VL_Search->IsActive) {
+            // Bereken minimaal eindpunt: ankercandle + 3 bars
+            int minEndBar = p_VL_Search->ConfirmLevelBar + 3;
+            int vl_EndBar = (lineEndBar > minEndBar) ? lineEndBar : minEndBar;
+            
             s_UseTool VL_Line;
             VL_Line.DrawingType = DRAWING_LINE;
             VL_Line.LineNumber = LINE_NUMBER_VL;
             VL_Line.AddMethod = UTAM_ADD_OR_ADJUST;
             VL_Line.BeginIndex = p_VL_Search->ConfirmLevelBar;
             VL_Line.BeginValue = p_VL_Search->ConfirmLevel;
-            VL_Line.EndIndex = lineEndBar;  // Laatste gesloten bar
+            VL_Line.EndIndex = vl_EndBar;  // Minimaal 3 bars verder
             VL_Line.EndValue = p_VL_Search->ConfirmLevel;
             VL_Line.Color = i_LineColor.GetColor();
             VL_Line.LineWidth = i_LineWidth.GetInt();
