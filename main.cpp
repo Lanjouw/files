@@ -19,6 +19,7 @@ struct s_TimeframeScanner {
     int VH_PeakBar_15s = -1;          // Exacte 15-sec bar met hoogste high (voor multi-TF)
     float VH_ConfirmLevel = 0.0f;     // Low van de anchor bar
     int VH_ConfirmLevelBar = -1;      // Bar waar de confirm level van is
+    int VH_StartBar_15s = -1;         // Start van 15-sec range voor deze search
     
     // VL zoektocht (loopt ALTIJD parallel)
     bool VL_Active = false;
@@ -27,12 +28,15 @@ struct s_TimeframeScanner {
     int VL_TroughBar_15s = -1;        // Exacte 15-sec bar met laagste low (voor multi-TF)
     float VL_ConfirmLevel = 0.0f;     // High van de anchor bar
     int VL_ConfirmLevelBar = -1;      // Bar waar de confirm level van is
+    int VL_StartBar_15s = -1;         // Start van 15-sec range voor deze search
     
     int LastProcessedBar = -1;
     
     // Voor hogere timeframes: tracking van laatste plots (voor range scanning)
     int LastVH_PlotBar = -1;          // Laatste VH plot (in eigen TF)
     int LastVL_PlotBar = -1;          // Laatste VL plot (in eigen TF)
+    int LastVH_PlotBar_15s = -1;      // Laatste VH plot (exact 15-sec bar)
+    int LastVL_PlotBar_15s = -1;      // Laatste VL plot (exact 15-sec bar)
 };
 
 // ============================================================================
@@ -174,8 +178,11 @@ void ScanHigherTFBar(
     
     // Handle VH confirmation
     if (vh_confirmed) {
-        // Gebruik de exact 15-sec bar die we tijdens de search hebben bijgehouden
-        int exact15sBar = scanner->VH_PeakBar_15s;
+        // Scan de HELE 15-sec range vanaf start van search tot nu
+        int startScan = scanner->VH_StartBar_15s;
+        int endScan = tfBar->EndBar_15s;
+        
+        int exact15sBar = FindExact15sBarWithHighestHigh(sc, startScan, endScan);
         
         if (exact15sBar >= 0) {
             float plotPrice = sc.High[exact15sBar] + (symbolOffset * sc.TickSize);
@@ -184,13 +191,14 @@ void ScanHigherTFBar(
             scanner->LastPlottedType = s_TimeframeScanner::LAST_VH;
             scanner->WhatToPlotNext = s_TimeframeScanner::PLOT_VL;
             scanner->LastVH_PlotBar = barIndex;
+            scanner->LastVH_PlotBar_15s = exact15sBar;
             scanner->VH_Active = false;
-            scanner->VH_PeakBar_15s = -1;
+            scanner->VH_StartBar_15s = -1;
             
             if (detailedLog) {
                 SCString msg;
-                msg.Format("[%s] VH PLOTTED at 15s bar %d (TF bar %d, Peak=%.2f)",
-                    tfName, exact15sBar, barIndex, sc.High[exact15sBar]);
+                msg.Format("[%s] VH PLOTTED at 15s bar %d (scanned range %d-%d, Peak=%.2f)",
+                    tfName, exact15sBar, startScan, endScan, sc.High[exact15sBar]);
                 sc.AddMessageToLog(msg, 0);
             }
         }
@@ -198,8 +206,11 @@ void ScanHigherTFBar(
     
     // Handle VL confirmation
     if (vl_confirmed) {
-        // Gebruik de exact 15-sec bar die we tijdens de search hebben bijgehouden
-        int exact15sBar = scanner->VL_TroughBar_15s;
+        // Scan de HELE 15-sec range vanaf start van search tot nu
+        int startScan = scanner->VL_StartBar_15s;
+        int endScan = tfBar->EndBar_15s;
+        
+        int exact15sBar = FindExact15sBarWithLowestLow(sc, startScan, endScan);
         
         if (exact15sBar >= 0) {
             float plotPrice = sc.Low[exact15sBar] - (symbolOffset * sc.TickSize);
@@ -208,13 +219,14 @@ void ScanHigherTFBar(
             scanner->LastPlottedType = s_TimeframeScanner::LAST_VL;
             scanner->WhatToPlotNext = s_TimeframeScanner::PLOT_VH;
             scanner->LastVL_PlotBar = barIndex;
+            scanner->LastVL_PlotBar_15s = exact15sBar;
             scanner->VL_Active = false;
-            scanner->VL_TroughBar_15s = -1;
+            scanner->VL_StartBar_15s = -1;
             
             if (detailedLog) {
                 SCString msg;
-                msg.Format("[%s] VL PLOTTED at 15s bar %d (TF bar %d, Trough=%.2f)",
-                    tfName, exact15sBar, barIndex, sc.Low[exact15sBar]);
+                msg.Format("[%s] VL PLOTTED at 15s bar %d (scanned range %d-%d, Trough=%.2f)",
+                    tfName, exact15sBar, startScan, endScan, sc.Low[exact15sBar]);
                 sc.AddMessageToLog(msg, 0);
             }
         }
@@ -226,25 +238,21 @@ void ScanHigherTFBar(
             scanner->VH_Active = true;
             scanner->VH_PeakHigh = high;
             scanner->VH_PeakBar = barIndex;
-            scanner->VH_PeakBar_15s = tfBar->HighBar_15s;  // Exacte 15-sec bar
             scanner->VH_ConfirmLevel = low;
             scanner->VH_ConfirmLevelBar = barIndex;
+            // Start 15-sec range vanaf laatste VL of vanaf start
+            scanner->VH_StartBar_15s = (scanner->LastVL_PlotBar_15s >= 0) ? 
+                                       scanner->LastVL_PlotBar_15s : tfBar->StartBar_15s;
         }
     } else {
-        bool peakUpdated = false;
-        bool anchorUpdated = false;
-        
         if (high > scanner->VH_PeakHigh) {
             scanner->VH_PeakHigh = high;
             scanner->VH_PeakBar = barIndex;
-            scanner->VH_PeakBar_15s = tfBar->HighBar_15s;  // Exacte 15-sec bar
-            peakUpdated = true;
         }
         
         if (close > prev_high && bodySize >= minBodySize) {
             scanner->VH_ConfirmLevel = low;
             scanner->VH_ConfirmLevelBar = barIndex;
-            anchorUpdated = true;
         }
     }
     
@@ -253,25 +261,21 @@ void ScanHigherTFBar(
             scanner->VL_Active = true;
             scanner->VL_TroughLow = low;
             scanner->VL_TroughBar = barIndex;
-            scanner->VL_TroughBar_15s = tfBar->LowBar_15s;  // Exacte 15-sec bar
             scanner->VL_ConfirmLevel = high;
             scanner->VL_ConfirmLevelBar = barIndex;
+            // Start 15-sec range vanaf laatste VH of vanaf start
+            scanner->VL_StartBar_15s = (scanner->LastVH_PlotBar_15s >= 0) ? 
+                                       scanner->LastVH_PlotBar_15s : tfBar->StartBar_15s;
         }
     } else {
-        bool troughUpdated = false;
-        bool anchorUpdated = false;
-        
         if (low < scanner->VL_TroughLow) {
             scanner->VL_TroughLow = low;
             scanner->VL_TroughBar = barIndex;
-            scanner->VL_TroughBar_15s = tfBar->LowBar_15s;  // Exacte 15-sec bar
-            troughUpdated = true;
         }
         
         if (close < prev_low && bodySize >= minBodySize) {
             scanner->VL_ConfirmLevel = high;
             scanner->VL_ConfirmLevelBar = barIndex;
-            anchorUpdated = true;
         }
     }
     
