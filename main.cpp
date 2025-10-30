@@ -168,19 +168,14 @@ void ScanHigherTFBar(
         prev_low = low;
     }
     
-    float bodySize = (close > open) ? (close - open) : (open - close);
-    float minBodySize = 2.0f * sc.TickSize;
-    
-    // Check confirmations
+    // Check confirmations (GEEN bodySize eis meer!)
     bool vh_confirmed = (scanner->VH_Active && 
                         close < scanner->VH_ConfirmLevel &&
-                        bodySize >= minBodySize &&
                         scanner->WhatToPlotNext == s_TimeframeScanner::PLOT_VH &&
                         scanner->LastPlottedType != s_TimeframeScanner::LAST_VH);
     
     bool vl_confirmed = (scanner->VL_Active && 
                         close > scanner->VL_ConfirmLevel &&
-                        bodySize >= minBodySize &&
                         scanner->WhatToPlotNext == s_TimeframeScanner::PLOT_VL &&
                         scanner->LastPlottedType != s_TimeframeScanner::LAST_VL);
     
@@ -282,9 +277,9 @@ void ScanHigherTFBar(
         }
     }
     
-    // Update searches
+    // Update searches (GEEN bodySize eis meer!)
     if (!scanner->VH_Active) {
-        if (close > prev_high && bodySize >= minBodySize) {
+        if (close > prev_high) {
             scanner->VH_Active = true;
             scanner->VH_PeakHigh = high;
             scanner->VH_PeakBar = barIndex;
@@ -308,7 +303,7 @@ void ScanHigherTFBar(
             scanner->VH_PeakBar = barIndex;
         }
         
-        if (close > prev_high && bodySize >= minBodySize) {
+        if (close > prev_high) {
             scanner->VH_ConfirmLevel = low;
             scanner->VH_ConfirmLevelBar = barIndex;
             scanner->VH_ConfirmLevelBar_15s = tfBar->StartBar_15s;  // Begin van deze TF bar
@@ -316,7 +311,7 @@ void ScanHigherTFBar(
     }
     
     if (!scanner->VL_Active) {
-        if (close < prev_low && bodySize >= minBodySize) {
+        if (close < prev_low) {
             scanner->VL_Active = true;
             scanner->VL_TroughLow = low;
             scanner->VL_TroughBar = barIndex;
@@ -340,7 +335,7 @@ void ScanHigherTFBar(
             scanner->VL_TroughBar = barIndex;
         }
         
-        if (close < prev_low && bodySize >= minBodySize) {
+        if (close < prev_low) {
             scanner->VL_ConfirmLevel = high;
             scanner->VL_ConfirmLevelBar = barIndex;
             scanner->VL_ConfirmLevelBar_15s = tfBar->StartBar_15s;  // Begin van deze TF bar
@@ -664,13 +659,11 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         
         bool vh_confirmed = (p_15s->VH_Active && 
                             close < p_15s->VH_ConfirmLevel &&  // Close moet ONDER niveau
-                            bodySize >= minBodySize &&  // Body moet minimaal 2 ticks zijn
                             p_15s->WhatToPlotNext == s_TimeframeScanner::PLOT_VH &&
                             p_15s->LastPlottedType != s_TimeframeScanner::LAST_VH);  // GEEN dubbele VH!
         
         bool vl_confirmed = (p_15s->VL_Active && 
                             close > p_15s->VL_ConfirmLevel &&  // Close moet BOVEN niveau
-                            bodySize >= minBodySize &&  // Body moet minimaal 2 ticks zijn
                             p_15s->WhatToPlotNext == s_TimeframeScanner::PLOT_VL &&
                             p_15s->LastPlottedType != s_TimeframeScanner::LAST_VL);  // GEEN dubbele VL!
 
@@ -821,8 +814,8 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         
         // VH Search (altijd actief)
         if (!p_15s->VH_Active) {
-            // Start nieuwe VH search: close > prev_high EN body >= 2 ticks
-            if (close > prev_high && bodySize >= minBodySize) {
+            // Start nieuwe VH search: close > prev_high
+            if (close > prev_high) {
                 p_15s->VH_Active = true;
                 p_15s->VH_PeakHigh = high;
                 p_15s->VH_PeakBar = barToProcess;
@@ -853,8 +846,8 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
                 peakUpdated = true;
             }
             
-            // Check voor nieuwe ANCHOR (close > prev_high EN body >= 2 ticks)
-            if (close > prev_high && bodySize >= minBodySize) {
+            // Check voor nieuwe ANCHOR (close > prev_high)
+            if (close > prev_high) {
                 p_15s->VH_ConfirmLevel = low;
                 p_15s->VH_ConfirmLevelBar = barToProcess;
                 anchorUpdated = true;
@@ -878,8 +871,8 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         
         // VL Search (altijd actief)
         if (!p_15s->VL_Active) {
-            // Start nieuwe VL search: close < prev_low EN body >= 2 ticks
-            if (close < prev_low && bodySize >= minBodySize) {
+            // Start nieuwe VL search: close < prev_low
+            if (close < prev_low) {
                 p_15s->VL_Active = true;
                 p_15s->VL_TroughLow = low;
                 p_15s->VL_TroughBar = barToProcess;
@@ -910,8 +903,8 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
                 troughUpdated = true;
             }
             
-            // Check voor nieuwe ANCHOR (close < prev_low EN body >= 2 ticks)
-            if (close < prev_low && bodySize >= minBodySize) {
+            // Check voor nieuwe ANCHOR (close < prev_low)
+            if (close < prev_low) {
                 p_15s->VL_ConfirmLevel = high;
                 p_15s->VL_ConfirmLevelBar = barToProcess;
                 anchorUpdated = true;
