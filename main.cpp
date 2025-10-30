@@ -926,6 +926,7 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
             }
         }
     } // Einde processing block
+    } // End 15-sec processing
 
     // ========================================================================
     // STAP 3: VISUALISATIE - CONFIRM LIJNEN (alle timeframes)
@@ -973,9 +974,47 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         };
         
         // Teken lijnen voor alle enabled timeframes
+        // Voor 15-sec: gebruik normale ConfirmLevelBar (is al een 15s index)
         if (i_15s_Enabled.GetYesNo()) {
-            DrawConfirmLine(200001, p_15s, RGB(0, 0, 0));  // Black
+            sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 200001);
+            bool shouldDrawLine = false;
+            int lineBeginBar = -1;
+            float lineValue = 0.0f;
+            
+            if (p_15s->WhatToPlotNext == s_TimeframeScanner::PLOT_VH && p_15s->VH_Active) {
+                shouldDrawLine = true;
+                lineBeginBar = p_15s->VH_ConfirmLevelBar;  // Normale bar index (is al 15s)
+                lineValue = p_15s->VH_ConfirmLevel;
+            } else if (p_15s->WhatToPlotNext == s_TimeframeScanner::PLOT_VL && p_15s->VL_Active) {
+                shouldDrawLine = true;
+                lineBeginBar = p_15s->VL_ConfirmLevelBar;  // Normale bar index (is al 15s)
+                lineValue = p_15s->VL_ConfirmLevel;
+            }
+            
+            if (shouldDrawLine && lineBeginBar >= 0) {
+                int lineEndBar = i;
+                if (lineEndBar < lineBeginBar + 3) {
+                    lineEndBar = lineBeginBar + 3;
+                }
+                
+                s_UseTool tool;
+                tool.DrawingType = DRAWING_LINE;
+                tool.LineNumber = 200001;
+                tool.AddMethod = UTAM_ADD_OR_ADJUST;
+                tool.BeginIndex = lineBeginBar;
+                tool.BeginValue = lineValue;
+                tool.EndIndex = lineEndBar;
+                tool.EndValue = lineValue;
+                tool.Color = RGB(0, 0, 0);
+                tool.LineWidth = i_LineWidth.GetInt();
+                tool.LineStyle = LINESTYLE_SOLID;
+                tool.ExtendLeft = false;
+                tool.ExtendRight = false;
+                sc.UseTool(tool);
+            }
         }
+        
+        // Voor hogere TF's: gebruik _15s variant
         if (i_1m_Enabled.GetYesNo()) {
             DrawConfirmLine(200002, p_1m, i_1m_SymbolColor.GetColor());  // 1min color
         }
@@ -986,7 +1025,6 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
             DrawConfirmLine(200004, p_15m, i_15m_SymbolColor.GetColor());  // 15min color
         }
     }
-    } // End 15-sec processing
     
     // ========================================================================
     // HIGHER TIMEFRAMES PROCESSING
