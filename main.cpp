@@ -9,6 +9,7 @@ enum PointType { PT_NONE, PT_VH, PT_VL };
 // Traffic light: bepaalt welk punt als VOLGENDE geplot mag worden
 struct s_TrafficLight {
     PointType NextPlotType = PT_VH; // Start: eerste plot moet een VH zijn
+    int LastProcessedBar = -1;      // Laatste bar die we volledig verwerkt hebben
 };
 
 // Onafhankelijke VH zoektocht (loopt altijd parallel)
@@ -127,74 +128,84 @@ SCSFExport scsf_VHVLTrendIndicator_Fixed(SCStudyInterfaceRef sc)
     // In realtime is bar i de "developing bar" - die is NOG NIET gesloten.
     // We mogen alleen bevestigen en updaten op basis van GESLOTEN bars.
     
-    // Bepaal welke bar we moeten analyseren
-    int barToAnalyze = i;
     bool isLastBar = (i == sc.ArraySize - 1);
     
-    // Als we op de laatste bar zijn, gebruik dan de VORIGE (gesloten) bar
-    if (isLastBar && i > 0) {
-        barToAnalyze = i - 1;
-    }
-
-    // Declareer variabelen voor scope toegankelijkheid
-    float currentClose = sc.Close[barToAnalyze];
-
-    // ========================================================================
-    // STAP 1: BEVESTIGING CHECKEN (alleen op GESLOTEN bars)
-    // ========================================================================
-    bool vh_isConfirmed = false;
-    bool vl_isConfirmed = false;
+    // Bepaal of we een nieuwe bar moeten verwerken
+    // We verwerken alleen als:
+    // 1. Het NIET de laatste bar is (historische data), OF
+    // 2. Het WEL de laatste bar is MAAR deze is nieuw (niet eerder verwerkt)
+    bool shouldProcessNewBar = false;
+    int barToProcess = i;
     
-    // Alleen bevestigen als we een nieuwe gesloten bar hebben
-    if (!isLastBar || sc.GetBarHasClosedStatus(i) == BHCS_BAR_HAS_CLOSED) {
-        vh_isConfirmed = (p_VH_Search->IsActive && 
-                         currentClose < p_VH_Search->ConfirmLevel &&
-                         p_TrafficLight->NextPlotType == PT_VH);
-        
-        vl_isConfirmed = (p_VL_Search->IsActive && 
-                         currentClose > p_VL_Search->ConfirmLevel &&
-                         p_TrafficLight->NextPlotType == PT_VL);
+    if (!isLastBar) {
+        // Historische bar - altijd verwerken
+        shouldProcessNewBar = true;
+        barToProcess = i;
+    } else {
+        // Laatste bar - check of het een NIEUWE gesloten bar is
+        // Dit gebeurt wanneer een nieuwe bar is begonnen (vorige bar is nu gesloten)
+        if (i > p_TrafficLight->LastProcessedBar) {
+            // Nieuwe bar gedetecteerd - verwerk de VORIGE (nu gesloten) bar
+            if (i > 0 && p_TrafficLight->LastProcessedBar < i - 1) {
+                shouldProcessNewBar = true;
+                barToProcess = i - 1;
+            }
+        }
     }
 
-    // Bevestigingen verwerken
-    if (vh_isConfirmed) {
-        // Plot VH pijl
-        float arrowPrice = p_VH_Search->PeakHigh + (i_ArrowOffset.GetInt() * sc.TickSize);
-        s_VH[p_VH_Search->PeakBar] = arrowPrice;
-        
-        // Wissel traffic light
-        p_TrafficLight->NextPlotType = PT_VL;
-        
-        // Reset VH search (nieuwe zoektocht kan beginnen)
-        *p_VH_Search = s_VH_Search();
-    }
-    
-    if (vl_isConfirmed) {
-        // Plot VL pijl
-        float arrowPrice = p_VL_Search->TroughLow - (i_ArrowOffset.GetInt() * sc.TickSize);
-        s_VL[p_VL_Search->TroughBar] = arrowPrice;
-        
-        // Wissel traffic light
-        p_TrafficLight->NextPlotType = PT_VH;
-        
-        // Reset VL search (nieuwe zoektocht kan beginnen)
-        *p_VL_Search = s_VL_Search();
-    }
-
-    // ========================================================================
-    // STAP 2: PARALLELLE ZOEKTOCHTEN UPDATEN (alleen met GESLOTEN bars)
-    // ========================================================================
-    // Skip update als we op de developing bar zijn EN die nog niet gesloten is
-    if (isLastBar && sc.GetBarHasClosedStatus(i) != BHCS_BAR_HAS_CLOSED) {
-        // Developing bar - niet gebruiken voor search updates
+    // Als we geen nieuwe bar hebben om te verwerken, skip de logica (alleen visualisatie updaten)
+    if (!shouldProcessNewBar) {
         // Ga direct naar visualisatie
     } else {
-        // Gesloten bar - veilig om te gebruiken
-        float high = sc.High[barToAnalyze];
-        float low = sc.Low[barToAnalyze];
-        float close = sc.Close[barToAnalyze];
-        float prev_high = sc.High[barToAnalyze - 1];
-        float prev_low = sc.Low[barToAnalyze - 1];
+        // We hebben een nieuwe gesloten bar om te verwerken
+        p_TrafficLight->LastProcessedBar = barToProcess;
+        
+        float currentClose = sc.Close[barToProcess];
+
+        // ====================================================================
+        // STAP 1: BEVESTIGING CHECKEN (alleen op nieuwe GESLOTEN bars)
+        // ====================================================================
+        bool vh_isConfirmed = (p_VH_Search->IsActive && 
+                              currentClose < p_VH_Search->ConfirmLevel &&
+                              p_TrafficLight->NextPlotType == PT_VH);
+        
+        bool vl_isConfirmed = (p_VL_Search->IsActive && 
+                              currentClose > p_VL_Search->ConfirmLevel &&
+                              p_TrafficLight->NextPlotType == PT_VL);
+
+        // Bevestigingen verwerken
+        if (vh_isConfirmed) {
+            // Plot VH pijl
+            float arrowPrice = p_VH_Search->PeakHigh + (i_ArrowOffset.GetInt() * sc.TickSize);
+            s_VH[p_VH_Search->PeakBar] = arrowPrice;
+            
+            // Wissel traffic light
+            p_TrafficLight->NextPlotType = PT_VL;
+            
+            // Reset VH search (nieuwe zoektocht kan beginnen)
+            *p_VH_Search = s_VH_Search();
+        }
+        
+        if (vl_isConfirmed) {
+            // Plot VL pijl
+            float arrowPrice = p_VL_Search->TroughLow - (i_ArrowOffset.GetInt() * sc.TickSize);
+            s_VL[p_VL_Search->TroughBar] = arrowPrice;
+            
+            // Wissel traffic light
+            p_TrafficLight->NextPlotType = PT_VH;
+            
+            // Reset VL search (nieuwe zoektocht kan beginnen)
+            *p_VL_Search = s_VL_Search();
+        }
+
+        // ====================================================================
+        // STAP 2: PARALLELLE ZOEKTOCHTEN UPDATEN (alleen met GESLOTEN bars)
+        // ====================================================================
+        float high = sc.High[barToProcess];
+        float low = sc.Low[barToProcess];
+        float close = sc.Close[barToProcess];
+        float prev_high = sc.High[barToProcess - 1];
+        float prev_low = sc.Low[barToProcess - 1];
 
         // --- VH ZOEKTOCHT (altijd actief) ---
         if (!p_VH_Search->IsActive) {
@@ -202,17 +213,17 @@ SCSFExport scsf_VHVLTrendIndicator_Fixed(SCStudyInterfaceRef sc)
             if (close > prev_high) {
                 p_VH_Search->IsActive = true;
                 p_VH_Search->PeakHigh = high;
-                p_VH_Search->PeakBar = barToAnalyze;
+                p_VH_Search->PeakBar = barToProcess;
                 p_VH_Search->ConfirmLevel = low;           // Low van anker candle
-                p_VH_Search->ConfirmLevelBar = barToAnalyze;  // Dit is de anker candle
+                p_VH_Search->ConfirmLevelBar = barToProcess;  // Dit is de anker candle
             }
         } else {
             // Update bestaande VH zoektocht: hogere high gevonden
             if (high > p_VH_Search->PeakHigh) {
                 p_VH_Search->PeakHigh = high;
-                p_VH_Search->PeakBar = barToAnalyze;
+                p_VH_Search->PeakBar = barToProcess;
                 p_VH_Search->ConfirmLevel = low;           // Low van nieuwe anker candle
-                p_VH_Search->ConfirmLevelBar = barToAnalyze;  // Nieuwe anker candle
+                p_VH_Search->ConfirmLevelBar = barToProcess;  // Nieuwe anker candle
             }
         }
 
@@ -222,20 +233,20 @@ SCSFExport scsf_VHVLTrendIndicator_Fixed(SCStudyInterfaceRef sc)
             if (close < prev_low) {
                 p_VL_Search->IsActive = true;
                 p_VL_Search->TroughLow = low;
-                p_VL_Search->TroughBar = barToAnalyze;
+                p_VL_Search->TroughBar = barToProcess;
                 p_VL_Search->ConfirmLevel = high;          // High van anker candle
-                p_VL_Search->ConfirmLevelBar = barToAnalyze;  // Dit is de anker candle
+                p_VL_Search->ConfirmLevelBar = barToProcess;  // Dit is de anker candle
             }
         } else {
             // Update bestaande VL zoektocht: lagere low gevonden
             if (low < p_VL_Search->TroughLow) {
                 p_VL_Search->TroughLow = low;
-                p_VL_Search->TroughBar = barToAnalyze;
+                p_VL_Search->TroughBar = barToProcess;
                 p_VL_Search->ConfirmLevel = high;          // High van nieuwe anker candle
-                p_VL_Search->ConfirmLevelBar = barToAnalyze;  // Nieuwe anker candle
+                p_VL_Search->ConfirmLevelBar = barToProcess;  // Nieuwe anker candle
             }
         }
-    }
+    } // Einde van shouldProcessNewBar
 
     // ========================================================================
     // STAP 3: VISUALISATIE (alleen op laatste bar)
@@ -249,8 +260,8 @@ SCSFExport scsf_VHVLTrendIndicator_Fixed(SCStudyInterfaceRef sc)
         }
 
         // BELANGRIJK: Lijn eindpunt moet LAATSTE GESLOTEN BAR zijn, niet de developing bar
-        // Als huidige bar nog niet gesloten is, gebruik dan de vorige bar als eindpunt
-        int lineEndBar = barToAnalyze;  // Dit is altijd een gesloten bar
+        // Gebruik de laatst verwerkte bar als eindpunt
+        int lineEndBar = p_TrafficLight->LastProcessedBar;
 
         // --- VH LIJN ---
         if (p_VH_Search->IsActive) {
@@ -314,9 +325,11 @@ SCSFExport scsf_VHVLTrendIndicator_Fixed(SCStudyInterfaceRef sc)
                 ss << "  Bars Active: " << (i - p_VL_Search->ConfirmLevelBar) << "\n";
             }
             
-            ss << "\nCurrent Bar: " << i;
-            ss << "\nLast Closed Bar: " << barToAnalyze;
-            ss << "\nLast Close: " << sc.FormatGraphValue(currentClose, sc.BaseGraphValueFormat);
+            ss << "\nCurrent Bar Index: " << i;
+            ss << "\nLast Processed Bar: " << p_TrafficLight->LastProcessedBar;
+            if (p_TrafficLight->LastProcessedBar >= 0) {
+                ss << "\nLast Processed Close: " << sc.FormatGraphValue(sc.Close[p_TrafficLight->LastProcessedBar], sc.BaseGraphValueFormat);
+            }
             
             s_UseTool TextTool;
             TextTool.DrawingType = DRAWING_TEXT;
