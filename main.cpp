@@ -236,24 +236,37 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
                 sc.AddMessageToLog(msg, 0);
             }
             
-            // Reset BEIDE searches - schone lei!
+            // Reset VH search (net geplot)
             p_15s->VH_Active = false;
             p_15s->VH_PeakHigh = 0.0f;
             p_15s->VH_PeakBar = -1;
             p_15s->VH_ConfirmLevel = 0.0f;
             p_15s->VH_ConfirmLevelBar = -1;
             
-            // RESET OOK VL - oude VL data is niet meer relevant
-            p_15s->VL_Active = false;
-            p_15s->VL_TroughLow = 0.0f;
-            p_15s->VL_TroughBar = -1;
-            p_15s->VL_ConfirmLevel = 0.0f;
-            p_15s->VL_ConfirmLevelBar = -1;
-            
-            if (i_DetailedLog.GetYesNo()) {
-                SCString msg;
-                msg.Format("    Both searches RESET - fresh start");
-                sc.AddMessageToLog(msg, 0);
+            // Check: is VL search actief EN close is al boven het trough niveau?
+            // Dan werkt de VL search aan een oude trough, reset
+            if (p_15s->VL_Active && p_15s->VL_TroughBar >= 0) {
+                // Check of we sinds de trough bar al boven de confirm level zijn gegaan
+                bool vlBroken = false;
+                for (int checkBar = p_15s->VL_TroughBar + 1; checkBar <= barToProcess; checkBar++) {
+                    if (sc.Close[checkBar] > p_15s->VL_ConfirmLevel) {
+                        vlBroken = true;
+                        break;
+                    }
+                }
+                
+                if (vlBroken) {
+                    if (i_DetailedLog.GetYesNo()) {
+                        SCString msg;
+                        msg.Format("    VL search was already broken (close went > confirm while blocked), RESET");
+                        sc.AddMessageToLog(msg, 0);
+                    }
+                    p_15s->VL_Active = false;
+                    p_15s->VL_TroughLow = 0.0f;
+                    p_15s->VL_TroughBar = -1;
+                    p_15s->VL_ConfirmLevel = 0.0f;
+                    p_15s->VL_ConfirmLevelBar = -1;
+                }
             }
         }
         
@@ -274,24 +287,43 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
             // Switch traffic light - nu wachten op VH
             p_15s->WhatToPlotNext = s_TimeframeScanner::PLOT_VH;
             
-            // Reset BEIDE searches - schone lei!
+            if (i_DetailedLog.GetYesNo()) {
+                SCString msg;
+                msg.Format("    Traffic light switched: Now waiting for VH");
+                sc.AddMessageToLog(msg, 0);
+            }
+            
+            // Reset VL search (net geplot)
             p_15s->VL_Active = false;
             p_15s->VL_TroughLow = 0.0f;
             p_15s->VL_TroughBar = -1;
             p_15s->VL_ConfirmLevel = 0.0f;
             p_15s->VL_ConfirmLevelBar = -1;
             
-            // RESET OOK VH - oude VH data is niet meer relevant
-            p_15s->VH_Active = false;
-            p_15s->VH_PeakHigh = 0.0f;
-            p_15s->VH_PeakBar = -1;
-            p_15s->VH_ConfirmLevel = 0.0f;
-            p_15s->VH_ConfirmLevelBar = -1;
-            
-            if (i_DetailedLog.GetYesNo()) {
-                SCString msg;
-                msg.Format("    Both searches RESET - fresh start");
-                sc.AddMessageToLog(msg, 0);
+            // Check: is VH search actief EN close is al onder het peak niveau?
+            // Dan werkt de VH search aan een oude peak, reset
+            if (p_15s->VH_Active && p_15s->VH_PeakBar >= 0) {
+                // Check of we sinds de peak bar al onder de confirm level zijn gegaan
+                bool vhBroken = false;
+                for (int checkBar = p_15s->VH_PeakBar + 1; checkBar <= barToProcess; checkBar++) {
+                    if (sc.Close[checkBar] < p_15s->VH_ConfirmLevel) {
+                        vhBroken = true;
+                        break;
+                    }
+                }
+                
+                if (vhBroken) {
+                    if (i_DetailedLog.GetYesNo()) {
+                        SCString msg;
+                        msg.Format("    VH search was already broken (close went < confirm while blocked), RESET");
+                        sc.AddMessageToLog(msg, 0);
+                    }
+                    p_15s->VH_Active = false;
+                    p_15s->VH_PeakHigh = 0.0f;
+                    p_15s->VH_PeakBar = -1;
+                    p_15s->VH_ConfirmLevel = 0.0f;
+                    p_15s->VH_ConfirmLevelBar = -1;
+                }
             }
         }
 
