@@ -7,8 +7,10 @@ SCDLLName("VH/VL Multi-Timeframe Scanner")
 // ============================================================================
 struct s_TimeframeScanner {
     enum NextPlot { PLOT_VH, PLOT_VL };
+    enum LastPlotted { NONE, LAST_VH, LAST_VL };
     
     NextPlot WhatToPlotNext = PLOT_VH;  // Traffic light: wat mag als volgende geplot worden
+    LastPlotted LastPlottedType = NONE;  // Wat hebben we als laatste geplot (extra veiligheid)
     
     // VH zoektocht (loopt ALTIJD parallel)
     bool VH_Active = false;
@@ -152,10 +154,15 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         float prev_low = sc.Low[barToProcess - 1];
         
         if (i_DetailedLog.GetYesNo()) {
+            const char* lastPlotted = "NONE";
+            if (p_15s->LastPlottedType == s_TimeframeScanner::LAST_VH) lastPlotted = "VH";
+            else if (p_15s->LastPlottedType == s_TimeframeScanner::LAST_VL) lastPlotted = "VL";
+            
             SCString msg;
-            msg.Format("[Bar %d] Processing - NextPlot=%s, H=%.2f L=%.2f C=%.2f",
+            msg.Format("[Bar %d] Processing - NextPlot=%s, LastPlotted=%s, H=%.2f L=%.2f C=%.2f",
                 barToProcess,
                 (p_15s->WhatToPlotNext == s_TimeframeScanner::PLOT_VH ? "VH" : "VL"),
+                lastPlotted,
                 high, low, close);
             sc.AddMessageToLog(msg, 0);
         }
@@ -170,12 +177,14 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         bool vh_confirmed = (p_15s->VH_Active && 
                             close < p_15s->VH_ConfirmLevel &&
                             bodySize >= minBodySize &&  // Body moet minimaal 2 ticks zijn
-                            p_15s->WhatToPlotNext == s_TimeframeScanner::PLOT_VH);
+                            p_15s->WhatToPlotNext == s_TimeframeScanner::PLOT_VH &&
+                            p_15s->LastPlottedType != s_TimeframeScanner::LAST_VH);  // GEEN dubbele VH!
         
         bool vl_confirmed = (p_15s->VL_Active && 
                             close > p_15s->VL_ConfirmLevel &&
                             bodySize >= minBodySize &&  // Body moet minimaal 2 ticks zijn
-                            p_15s->WhatToPlotNext == s_TimeframeScanner::PLOT_VL);
+                            p_15s->WhatToPlotNext == s_TimeframeScanner::PLOT_VL &&
+                            p_15s->LastPlottedType != s_TimeframeScanner::LAST_VL);  // GEEN dubbele VL!
 
         if (i_DetailedLog.GetYesNo()) {
             SCString msg;
@@ -207,6 +216,9 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         if (vh_confirmed) {
             float plotPrice = p_15s->VH_PeakHigh + (i_15s_SymbolOffset.GetInt() * sc.TickSize);
             sg_15s_VH[p_15s->VH_PeakBar] = plotPrice;
+            
+            // Update laatste plot type
+            p_15s->LastPlottedType = s_TimeframeScanner::LAST_VH;
             
             if (i_DetailedLog.GetYesNo()) {
                 SCString msg;
@@ -250,6 +262,9 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         if (vl_confirmed) {
             float plotPrice = p_15s->VL_TroughLow - (i_15s_SymbolOffset.GetInt() * sc.TickSize);
             sg_15s_VL[p_15s->VL_TroughBar] = plotPrice;
+            
+            // Update laatste plot type
+            p_15s->LastPlottedType = s_TimeframeScanner::LAST_VL;
             
             if (i_DetailedLog.GetYesNo()) {
                 SCString msg;
