@@ -123,29 +123,22 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
     int i = sc.Index;
     if (i < 2) return;
 
-    bool isLastBar = (i == sc.ArraySize - 1);
-    
-    // Bepaal of we moeten verwerken
-    bool shouldProcess = false;
-    int barToProcess = i;
-    
-    if (!isLastBar) {
-        shouldProcess = true;
-        barToProcess = i;
+    // Check of we deze bar al verwerkt hebben
+    if (i <= p_15s->LastProcessedBar) {
+        // Al verwerkt - skip naar visualisatie
     } else {
-        if (i > p_15s->LastProcessedBar && i > 0) {
-            shouldProcess = true;
-            barToProcess = i - 1;
-        }
-    }
-
-    if (!shouldProcess) {
-        // Skip - alleen visualisatie
-    } else {
+        // Nieuwe bar om te verwerken
+        bool isLastBar = (i == sc.ArraySize - 1);
+        int barToProcess = isLastBar ? (i - 1) : i;
+        
+        // Extra check: alleen verwerken als barToProcess > LastProcessedBar
+        if (barToProcess <= p_15s->LastProcessedBar) {
+            // Deze bar is al verwerkt, skip
+        } else {
         // ====================================================================
         // VERWERK GESLOTEN BAR
         // ====================================================================
-        p_15s->LastProcessedBar = barToProcess;
+        p_15s->LastProcessedBar = i;  // Markeer HUIDIGE index als verwerkt, niet barToProcess!
         
         float high = sc.High[barToProcess];
         float low = sc.Low[barToProcess];
@@ -418,12 +411,13 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
                 sc.AddMessageToLog(msg, 0);
             }
         }
-    }
+        } // Einde barToProcess > LastProcessedBar check
+    } // Einde i > LastProcessedBar check
 
     // ========================================================================
     // STAP 3: VISUALISATIE - 1 LIJN (van "next plot" search)
     // ========================================================================
-    if (isLastBar) {
+    if (i == sc.ArraySize - 1) {
         const int LINE_NUMBER = 200001;
         
         sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, LINE_NUMBER);
