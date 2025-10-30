@@ -175,13 +175,13 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         float minBodySize = 2.0f * sc.TickSize;
         
         bool vh_confirmed = (p_15s->VH_Active && 
-                            close <= p_15s->VH_ConfirmLevel &&  // <= ipv < (close op of onder niveau)
+                            close < p_15s->VH_ConfirmLevel &&  // Close moet ONDER niveau
                             bodySize >= minBodySize &&  // Body moet minimaal 2 ticks zijn
                             p_15s->WhatToPlotNext == s_TimeframeScanner::PLOT_VH &&
                             p_15s->LastPlottedType != s_TimeframeScanner::LAST_VH);  // GEEN dubbele VH!
         
         bool vl_confirmed = (p_15s->VL_Active && 
-                            close >= p_15s->VL_ConfirmLevel &&  // >= ipv > (close op of boven niveau)
+                            close > p_15s->VL_ConfirmLevel &&  // Close moet BOVEN niveau
                             bodySize >= minBodySize &&  // Body moet minimaal 2 ticks zijn
                             p_15s->WhatToPlotNext == s_TimeframeScanner::PLOT_VL &&
                             p_15s->LastPlottedType != s_TimeframeScanner::LAST_VL);  // GEEN dubbele VL!
