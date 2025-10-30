@@ -630,14 +630,16 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
 
     // Detect full recalculation: als we terug gaan in tijd, reset state
     if (i < p_15s->LastProcessedBar - 1) {
-        // Recalculation detected - reset alle state
+        // Recalculation detected - reset ALLES compleet
         *p_15s = s_TimeframeScanner();
         *p_1m = s_TimeframeScanner();
         *p_5m = s_TimeframeScanner();
         *p_15m = s_TimeframeScanner();
-        p_1m_CurrentBar->Reset();
-        p_5m_CurrentBar->Reset();
-        p_15m_CurrentBar->Reset();
+        
+        // Reset TF bars VOLLEDIG (inclusief PrevHigh/PrevLow naar 0)
+        *p_1m_CurrentBar = s_HigherTFBar();
+        *p_5m_CurrentBar = s_HigherTFBar();
+        *p_15m_CurrentBar = s_HigherTFBar();
         
         // CLEAR alle subgraphs (oude plots verwijderen!)
         for (int j = 0; j < sc.ArraySize; j++) {
@@ -657,11 +659,9 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 200003);
         sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 200004);
         
-        if (i_DetailedLog.GetYesNo()) {
-            SCString msg;
-            msg.Format("RECALCULATION DETECTED at bar %d (LastProcessed was %d) - FULL RESET ALL TIMEFRAMES + CLEARED PLOTS", i, p_15s->LastProcessedBar);
-            sc.AddMessageToLog(msg, 0);
-        }
+        SCString msg;
+        msg.Format("RECALCULATION DETECTED at bar %d (LastProcessed was %d) - FULL RESET ALL TIMEFRAMES + CLEARED PLOTS", i, p_15s->LastProcessedBar);
+        sc.AddMessageToLog(msg, 0);
     }
 
     // ========================================================================
