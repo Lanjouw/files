@@ -236,26 +236,24 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
                 sc.AddMessageToLog(msg, 0);
             }
             
-            // Reset VH search - nieuwe zoektocht naar VH begint
+            // Reset BEIDE searches - schone lei!
             p_15s->VH_Active = false;
             p_15s->VH_PeakHigh = 0.0f;
             p_15s->VH_PeakBar = -1;
             p_15s->VH_ConfirmLevel = 0.0f;
             p_15s->VH_ConfirmLevelBar = -1;
             
-            // BELANGRIJK: Als huidige bar al een VL trigger is, start VL search direct
-            if (!p_15s->VL_Active && close < prev_low && bodySize >= minBodySize) {
-                p_15s->VL_Active = true;
-                p_15s->VL_TroughLow = low;
-                p_15s->VL_TroughBar = barToProcess;
-                p_15s->VL_ConfirmLevel = high;
-                p_15s->VL_ConfirmLevelBar = barToProcess;
-                
-                if (i_DetailedLog.GetYesNo()) {
-                    SCString msg;
-                    msg.Format("  VL AUTO-STARTED after VH confirmation on same bar %d", barToProcess);
-                    sc.AddMessageToLog(msg, 0);
-                }
+            // RESET OOK VL - oude VL data is niet meer relevant
+            p_15s->VL_Active = false;
+            p_15s->VL_TroughLow = 0.0f;
+            p_15s->VL_TroughBar = -1;
+            p_15s->VL_ConfirmLevel = 0.0f;
+            p_15s->VL_ConfirmLevelBar = -1;
+            
+            if (i_DetailedLog.GetYesNo()) {
+                SCString msg;
+                msg.Format("    Both searches RESET - fresh start");
+                sc.AddMessageToLog(msg, 0);
             }
         }
         
@@ -276,26 +274,24 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
             // Switch traffic light - nu wachten op VH
             p_15s->WhatToPlotNext = s_TimeframeScanner::PLOT_VH;
             
-            // Reset VL search - nieuwe zoektocht naar VL begint
+            // Reset BEIDE searches - schone lei!
             p_15s->VL_Active = false;
             p_15s->VL_TroughLow = 0.0f;
             p_15s->VL_TroughBar = -1;
             p_15s->VL_ConfirmLevel = 0.0f;
             p_15s->VL_ConfirmLevelBar = -1;
             
-            // BELANGRIJK: Als huidige bar al een VH trigger is, start VH search direct
-            if (!p_15s->VH_Active && close > prev_high && bodySize >= minBodySize) {
-                p_15s->VH_Active = true;
-                p_15s->VH_PeakHigh = high;
-                p_15s->VH_PeakBar = barToProcess;
-                p_15s->VH_ConfirmLevel = low;
-                p_15s->VH_ConfirmLevelBar = barToProcess;
-                
-                if (i_DetailedLog.GetYesNo()) {
-                    SCString msg;
-                    msg.Format("  VH AUTO-STARTED after VL confirmation on same bar %d", barToProcess);
-                    sc.AddMessageToLog(msg, 0);
-                }
+            // RESET OOK VH - oude VH data is niet meer relevant
+            p_15s->VH_Active = false;
+            p_15s->VH_PeakHigh = 0.0f;
+            p_15s->VH_PeakBar = -1;
+            p_15s->VH_ConfirmLevel = 0.0f;
+            p_15s->VH_ConfirmLevelBar = -1;
+            
+            if (i_DetailedLog.GetYesNo()) {
+                SCString msg;
+                msg.Format("    Both searches RESET - fresh start");
+                sc.AddMessageToLog(msg, 0);
             }
         }
 
