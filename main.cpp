@@ -163,29 +163,40 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         // ====================================================================
         // STAP 1: CHECK BEVESTIGINGEN (voor plots)
         // ====================================================================
+        float open = sc.Open[barToProcess];
+        float bodySize = (close > open) ? (close - open) : (open - close);  // Absolute body size
+        float minBodySize = 2.0f * sc.TickSize;
+        
         bool vh_confirmed = (p_15s->VH_Active && 
                             close < p_15s->VH_ConfirmLevel &&
+                            bodySize >= minBodySize &&  // Body moet minimaal 2 ticks zijn
                             p_15s->WhatToPlotNext == s_TimeframeScanner::PLOT_VH);
         
         bool vl_confirmed = (p_15s->VL_Active && 
                             close > p_15s->VL_ConfirmLevel &&
+                            bodySize >= minBodySize &&  // Body moet minimaal 2 ticks zijn
                             p_15s->WhatToPlotNext == s_TimeframeScanner::PLOT_VL);
 
         if (i_DetailedLog.GetYesNo()) {
+            SCString msg;
+            msg.Format("  Body: Open=%.2f Close=%.2f Size=%.2f MinReq=%.2f BodyOK=%d",
+                open, close, bodySize, minBodySize, (bodySize >= minBodySize ? 1 : 0));
+            sc.AddMessageToLog(msg, 0);
+            
             if (p_15s->VH_Active) {
-                SCString msg;
-                msg.Format("  VH: Active, Peak=%.2f@%d, ConfirmLvl=%.2f, Close<Lvl=%d, CanPlot=%d => Confirmed=%d",
+                msg.Format("  VH: Active, Peak=%.2f@%d, ConfirmLvl=%.2f, Close<Lvl=%d, BodyOK=%d, CanPlot=%d => Confirmed=%d",
                     p_15s->VH_PeakHigh, p_15s->VH_PeakBar, p_15s->VH_ConfirmLevel,
                     (close < p_15s->VH_ConfirmLevel ? 1 : 0),
+                    (bodySize >= minBodySize ? 1 : 0),
                     (p_15s->WhatToPlotNext == s_TimeframeScanner::PLOT_VH ? 1 : 0),
                     vh_confirmed);
                 sc.AddMessageToLog(msg, 0);
             }
             if (p_15s->VL_Active) {
-                SCString msg;
-                msg.Format("  VL: Active, Trough=%.2f@%d, ConfirmLvl=%.2f, Close>Lvl=%d, CanPlot=%d => Confirmed=%d",
+                msg.Format("  VL: Active, Trough=%.2f@%d, ConfirmLvl=%.2f, Close>Lvl=%d, BodyOK=%d, CanPlot=%d => Confirmed=%d",
                     p_15s->VL_TroughLow, p_15s->VL_TroughBar, p_15s->VL_ConfirmLevel,
                     (close > p_15s->VL_ConfirmLevel ? 1 : 0),
+                    (bodySize >= minBodySize ? 1 : 0),
                     (p_15s->WhatToPlotNext == s_TimeframeScanner::PLOT_VL ? 1 : 0),
                     vl_confirmed);
                 sc.AddMessageToLog(msg, 0);
@@ -206,6 +217,12 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
             
             // Switch traffic light - nu wachten op VL
             p_15s->WhatToPlotNext = s_TimeframeScanner::PLOT_VL;
+            
+            if (i_DetailedLog.GetYesNo()) {
+                SCString msg;
+                msg.Format("    Traffic light switched: Now waiting for VL");
+                sc.AddMessageToLog(msg, 0);
+            }
             
             // Reset VH search - nieuwe zoektocht naar VH begint
             p_15s->VH_Active = false;
