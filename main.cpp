@@ -139,7 +139,7 @@ int FindExact15sBarWithLowestLow(SCStudyInterfaceRef& sc, int startBar_15s, int 
     return minBar;
 }
 
-// Scan een higher timeframe bar voor VH/VL
+// Scan een higher timeframe bar voor VH/VL (OP TF NIVEAU!)
 void ScanHigherTFBar(
     SCStudyInterfaceRef& sc,
     s_TimeframeScanner* scanner,
@@ -152,30 +152,31 @@ void ScanHigherTFBar(
 ) {
     if (!tfBar->IsComplete) return;
     
+    // TF BAR data (1-min, 5-min, of 15-min candle!)
     float high = tfBar->High;
     float low = tfBar->Low;
     float open = tfBar->Open;
     float close = tfBar->Close;
     int barIndex = scanner->LastProcessedBar + 1;  // TF bar index
     
-    // Gebruik de vorige TF bar data
+    // VORIGE TF BAR data (voor vergelijking)
     float prev_high = tfBar->PrevHigh;
     float prev_low = tfBar->PrevLow;
     
-    // Bij de allereerste bar (na recalc) is PrevHigh/Low = 0, gebruik dan huidige bar
+    // Bij eerste bar: gebruik huidige bar
     if (prev_high == 0.0f && prev_low == 0.0f) {
         prev_high = high;
         prev_low = low;
     }
     
-    // Check confirmations (GEEN bodySize eis meer!)
+    // Check confirmations OP TF NIVEAU (TF bar close vs TF ConfirmLevel!)
     bool vh_confirmed = (scanner->VH_Active && 
-                        close < scanner->VH_ConfirmLevel &&
+                        close < scanner->VH_ConfirmLevel &&  // TF bar close < TF ConfirmLevel
                         scanner->WhatToPlotNext == s_TimeframeScanner::PLOT_VH &&
                         scanner->LastPlottedType != s_TimeframeScanner::LAST_VH);
     
     bool vl_confirmed = (scanner->VL_Active && 
-                        close > scanner->VL_ConfirmLevel &&
+                        close > scanner->VL_ConfirmLevel &&  // TF bar close > TF ConfirmLevel
                         scanner->WhatToPlotNext == s_TimeframeScanner::PLOT_VL &&
                         scanner->LastPlottedType != s_TimeframeScanner::LAST_VL);
     
@@ -277,68 +278,101 @@ void ScanHigherTFBar(
         }
     }
     
-    // Update searches (GEEN bodySize eis meer!)
+    // ====================================================================
+    // UPDATE SEARCHES (OP TF NIVEAU!)
+    // ====================================================================
+    
+    // VH Search
     if (!scanner->VH_Active) {
+        // Start nieuwe VH search: TF close > TF prev_high
         if (close > prev_high) {
             scanner->VH_Active = true;
-            scanner->VH_PeakHigh = high;
-            scanner->VH_PeakBar = barIndex;
-            scanner->VH_ConfirmLevel = low;
-            scanner->VH_ConfirmLevelBar = barIndex;
-            scanner->VH_ConfirmLevelBar_15s = tfBar->StartBar_15s;  // Begin van deze TF bar
-            // Start 15-sec range vanaf laatste VL of vanaf start
+            scanner->VH_PeakHigh = high;              // TF bar high
+            scanner->VH_PeakBar = barIndex;           // TF bar index
+            scanner->VH_ConfirmLevel = low;           // TF bar low
+            scanner->VH_ConfirmLevelBar = barIndex;   // TF bar index
+            scanner->VH_ConfirmLevelBar_15s = tfBar->StartBar_15s;  // Voor confirm lijn
+            // 15-sec range start: vanaf laatste VL plot of vanaf deze TF bar start
             scanner->VH_StartBar_15s = (scanner->LastVL_PlotBar_15s >= 0) ? 
                                        scanner->LastVL_PlotBar_15s : tfBar->StartBar_15s;
             
-            // ALTIJD loggen bij search start
             SCString msg;
-            msg.Format("[%s] *** VH SEARCH STARTED *** Bar %d, Close(%.2f)>PrevHigh(%.2f), Peak=%.2f, ConfirmLvl=%.2f, NextPlot=%s",
-                tfName, barIndex, close, prev_high, high, low, 
-                (scanner->WhatToPlotNext == s_TimeframeScanner::PLOT_VH ? "VH" : "VL"));
+            msg.Format("[%s] *** VH SEARCH STARTED *** TFBar %d (15s:%d-%d), TFClose(%.2f)>PrevTFHigh(%.2f), Peak=%.2f, ConfirmLvl=%.2f",
+                tfName, barIndex, tfBar->StartBar_15s, tfBar->EndBar_15s, close, prev_high, high, low);
             sc.AddMessageToLog(msg, 0);
         }
     } else {
+        // Update bestaande VH search
         if (high > scanner->VH_PeakHigh) {
+            // Hogere TF bar high -> update peak
             scanner->VH_PeakHigh = high;
             scanner->VH_PeakBar = barIndex;
+            
+            if (detailedLog) {
+                SCString msg;
+                msg.Format("[%s]   VH PEAK UPDATED: TFBar %d, NewPeak=%.2f", tfName, barIndex, high);
+                sc.AddMessageToLog(msg, 0);
+            }
         }
         
         if (close > prev_high) {
-            scanner->VH_ConfirmLevel = low;
+            // Nieuwe anchor: TF close > TF prev_high -> update ConfirmLevel
+            scanner->VH_ConfirmLevel = low;           // TF bar low
             scanner->VH_ConfirmLevelBar = barIndex;
-            scanner->VH_ConfirmLevelBar_15s = tfBar->StartBar_15s;  // Begin van deze TF bar
+            scanner->VH_ConfirmLevelBar_15s = tfBar->StartBar_15s;
+            
+            if (detailedLog) {
+                SCString msg;
+                msg.Format("[%s]   VH ANCHOR UPDATED: TFBar %d, NewConfirmLvl=%.2f", tfName, barIndex, low);
+                sc.AddMessageToLog(msg, 0);
+            }
         }
     }
     
+    // VL Search
     if (!scanner->VL_Active) {
+        // Start nieuwe VL search: TF close < TF prev_low
         if (close < prev_low) {
             scanner->VL_Active = true;
-            scanner->VL_TroughLow = low;
-            scanner->VL_TroughBar = barIndex;
-            scanner->VL_ConfirmLevel = high;
-            scanner->VL_ConfirmLevelBar = barIndex;
-            scanner->VL_ConfirmLevelBar_15s = tfBar->StartBar_15s;  // Begin van deze TF bar
-            // Start 15-sec range vanaf laatste VH of vanaf start
+            scanner->VL_TroughLow = low;              // TF bar low
+            scanner->VL_TroughBar = barIndex;         // TF bar index
+            scanner->VL_ConfirmLevel = high;          // TF bar high
+            scanner->VL_ConfirmLevelBar = barIndex;   // TF bar index
+            scanner->VL_ConfirmLevelBar_15s = tfBar->StartBar_15s;  // Voor confirm lijn
+            // 15-sec range start: vanaf laatste VH plot of vanaf deze TF bar start
             scanner->VL_StartBar_15s = (scanner->LastVH_PlotBar_15s >= 0) ? 
                                        scanner->LastVH_PlotBar_15s : tfBar->StartBar_15s;
             
-            // ALTIJD loggen bij search start
             SCString msg;
-            msg.Format("[%s] *** VL SEARCH STARTED *** Bar %d, Close(%.2f)<PrevLow(%.2f), Trough=%.2f, ConfirmLvl=%.2f, NextPlot=%s",
-                tfName, barIndex, close, prev_low, low, high,
-                (scanner->WhatToPlotNext == s_TimeframeScanner::PLOT_VH ? "VH" : "VL"));
+            msg.Format("[%s] *** VL SEARCH STARTED *** TFBar %d (15s:%d-%d), TFClose(%.2f)<PrevTFLow(%.2f), Trough=%.2f, ConfirmLvl=%.2f",
+                tfName, barIndex, tfBar->StartBar_15s, tfBar->EndBar_15s, close, prev_low, low, high);
             sc.AddMessageToLog(msg, 0);
         }
     } else {
+        // Update bestaande VL search
         if (low < scanner->VL_TroughLow) {
+            // Lagere TF bar low -> update trough
             scanner->VL_TroughLow = low;
             scanner->VL_TroughBar = barIndex;
+            
+            if (detailedLog) {
+                SCString msg;
+                msg.Format("[%s]   VL TROUGH UPDATED: TFBar %d, NewTrough=%.2f", tfName, barIndex, low);
+                sc.AddMessageToLog(msg, 0);
+            }
         }
         
         if (close < prev_low) {
-            scanner->VL_ConfirmLevel = high;
+            // Nieuwe anchor: TF close < TF prev_low -> update ConfirmLevel
+            scanner->VL_ConfirmLevel = high;          // TF bar high
             scanner->VL_ConfirmLevelBar = barIndex;
-            scanner->VL_ConfirmLevelBar_15s = tfBar->StartBar_15s;  // Begin van deze TF bar
+            scanner->VL_ConfirmLevelBar_15s = tfBar->StartBar_15s;
+            
+            if (detailedLog) {
+                SCString msg;
+                msg.Format("[%s]   VL ANCHOR UPDATED: TFBar %d, NewConfirmLvl=%.2f", tfName, barIndex, high);
+                sc.AddMessageToLog(msg, 0);
+            }
         }
     }
     
