@@ -213,19 +213,33 @@ SCSFExport scsf_VHVLTrendIndicator_Fixed(SCStudyInterfaceRef sc)
 
         if (i_DetailedLog.GetYesNo()) {
             SCString logMsg;
-            logMsg.Format("  VH Check: Active=%d, Close(%.2f) < ConfirmLvl(%.2f)=%d, NextPlot=%s => Confirmed=%d",
+            logMsg.Format("  VH Check: Active=%d, Close(%.2f) < ConfirmLvl(%.2f)=%d, NextPlot=%s, NeedVH=%d => Confirmed=%d",
                 p_VH_Search->IsActive, currentClose, p_VH_Search->ConfirmLevel,
                 (currentClose < p_VH_Search->ConfirmLevel ? 1 : 0),
                 (p_TrafficLight->NextPlotType == PT_VH ? "VH" : "VL"),
+                (p_TrafficLight->NextPlotType == PT_VH ? 1 : 0),
                 vh_isConfirmed);
             sc.AddMessageToLog(logMsg, 0);
             
-            logMsg.Format("  VL Check: Active=%d, Close(%.2f) > ConfirmLvl(%.2f)=%d, NextPlot=%s => Confirmed=%d",
+            if (p_VH_Search->IsActive && currentClose < p_VH_Search->ConfirmLevel && !vh_isConfirmed) {
+                logMsg.Format("    !! VH NOT CONFIRMED: Traffic light blocks (NextPlot=%s but need PT_VH)",
+                    (p_TrafficLight->NextPlotType == PT_VH ? "VH" : "VL"));
+                sc.AddMessageToLog(logMsg, 0);
+            }
+            
+            logMsg.Format("  VL Check: Active=%d, Close(%.2f) > ConfirmLvl(%.2f)=%d, NextPlot=%s, NeedVL=%d => Confirmed=%d",
                 p_VL_Search->IsActive, currentClose, p_VL_Search->ConfirmLevel,
                 (currentClose > p_VL_Search->ConfirmLevel ? 1 : 0),
                 (p_TrafficLight->NextPlotType == PT_VH ? "VH" : "VL"),
+                (p_TrafficLight->NextPlotType == PT_VL ? 1 : 0),
                 vl_isConfirmed);
             sc.AddMessageToLog(logMsg, 0);
+            
+            if (p_VL_Search->IsActive && currentClose > p_VL_Search->ConfirmLevel && !vl_isConfirmed) {
+                logMsg.Format("    !! VL NOT CONFIRMED: Traffic light blocks (NextPlot=%s but need PT_VL)",
+                    (p_TrafficLight->NextPlotType == PT_VH ? "VH" : "VL"));
+                sc.AddMessageToLog(logMsg, 0);
+            }
         }
 
         // Bevestigingen verwerken
