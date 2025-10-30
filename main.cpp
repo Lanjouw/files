@@ -42,6 +42,7 @@ SCSFExport scsf_VHVLTrendIndicator_Fixed(SCStudyInterfaceRef sc)
     SCInputRef i_LineWidth = sc.Input[2];
     SCInputRef i_LineStyle = sc.Input[3];
     SCInputRef i_DebugMode = sc.Input[4];
+    SCInputRef i_DetailedLog = sc.Input[5];
 
     SCSubgraphRef s_VH = sc.Subgraph[0];
     SCSubgraphRef s_VL = sc.Subgraph[1];
@@ -68,6 +69,9 @@ SCSFExport scsf_VHVLTrendIndicator_Fixed(SCStudyInterfaceRef sc)
         
         i_DebugMode.Name = "Enable Debug Mode";
         i_DebugMode.SetYesNo(false);
+        
+        i_DetailedLog.Name = "Enable Detailed Logging";
+        i_DetailedLog.SetYesNo(false);
 
         s_VH.Name = "VH Point";
         s_VH.DrawStyle = DRAWSTYLE_ARROWUP;
@@ -156,11 +160,22 @@ SCSFExport scsf_VHVLTrendIndicator_Fixed(SCStudyInterfaceRef sc)
     // Als we geen nieuwe bar hebben om te verwerken, skip de logica (alleen visualisatie updaten)
     if (!shouldProcessNewBar) {
         // Ga direct naar visualisatie
+        if (i_DetailedLog.GetYesNo()) {
+            SCString logMsg;
+            logMsg.Format("Bar %d: NO PROCESSING (developing bar, LastProcessedBar=%d)", i, p_TrafficLight->LastProcessedBar);
+            sc.AddMessageToLog(logMsg, 0);
+        }
     } else {
         // We hebben een nieuwe gesloten bar om te verwerken
         p_TrafficLight->LastProcessedBar = barToProcess;
         
         float currentClose = sc.Close[barToProcess];
+
+        if (i_DetailedLog.GetYesNo()) {
+            SCString logMsg;
+            logMsg.Format("Bar %d: PROCESSING Bar %d (CLOSED) - Close=%.2f", i, barToProcess, currentClose);
+            sc.AddMessageToLog(logMsg, 0);
+        }
 
         // ====================================================================
         // STAP 1: BEVESTIGING CHECKEN (alleen op nieuwe GESLOTEN bars)
@@ -173,11 +188,35 @@ SCSFExport scsf_VHVLTrendIndicator_Fixed(SCStudyInterfaceRef sc)
                               currentClose > p_VL_Search->ConfirmLevel &&
                               p_TrafficLight->NextPlotType == PT_VL);
 
+        if (i_DetailedLog.GetYesNo()) {
+            SCString logMsg;
+            logMsg.Format("  VH Check: Active=%d, Close(%.2f) < ConfirmLvl(%.2f)=%d, NextPlot=%s => Confirmed=%d",
+                p_VH_Search->IsActive, currentClose, p_VH_Search->ConfirmLevel,
+                (currentClose < p_VH_Search->ConfirmLevel ? 1 : 0),
+                (p_TrafficLight->NextPlotType == PT_VH ? "VH" : "VL"),
+                vh_isConfirmed);
+            sc.AddMessageToLog(logMsg, 0);
+            
+            logMsg.Format("  VL Check: Active=%d, Close(%.2f) > ConfirmLvl(%.2f)=%d, NextPlot=%s => Confirmed=%d",
+                p_VL_Search->IsActive, currentClose, p_VL_Search->ConfirmLevel,
+                (currentClose > p_VL_Search->ConfirmLevel ? 1 : 0),
+                (p_TrafficLight->NextPlotType == PT_VH ? "VH" : "VL"),
+                vl_isConfirmed);
+            sc.AddMessageToLog(logMsg, 0);
+        }
+
         // Bevestigingen verwerken
         if (vh_isConfirmed) {
             // Plot VH pijl
             float arrowPrice = p_VH_Search->PeakHigh + (i_ArrowOffset.GetInt() * sc.TickSize);
             s_VH[p_VH_Search->PeakBar] = arrowPrice;
+            
+            if (i_DetailedLog.GetYesNo()) {
+                SCString logMsg;
+                logMsg.Format("*** VH CONFIRMED & PLOTTED at Bar %d (Peak=%.2f, ConfirmLvl=%.2f) ***",
+                    p_VH_Search->PeakBar, p_VH_Search->PeakHigh, p_VH_Search->ConfirmLevel);
+                sc.AddMessageToLog(logMsg, 0);
+            }
             
             // Wissel traffic light
             p_TrafficLight->NextPlotType = PT_VL;
@@ -190,6 +229,13 @@ SCSFExport scsf_VHVLTrendIndicator_Fixed(SCStudyInterfaceRef sc)
             // Plot VL pijl
             float arrowPrice = p_VL_Search->TroughLow - (i_ArrowOffset.GetInt() * sc.TickSize);
             s_VL[p_VL_Search->TroughBar] = arrowPrice;
+            
+            if (i_DetailedLog.GetYesNo()) {
+                SCString logMsg;
+                logMsg.Format("*** VL CONFIRMED & PLOTTED at Bar %d (Trough=%.2f, ConfirmLvl=%.2f) ***",
+                    p_VL_Search->TroughBar, p_VL_Search->TroughLow, p_VL_Search->ConfirmLevel);
+                sc.AddMessageToLog(logMsg, 0);
+            }
             
             // Wissel traffic light
             p_TrafficLight->NextPlotType = PT_VH;
@@ -216,14 +262,31 @@ SCSFExport scsf_VHVLTrendIndicator_Fixed(SCStudyInterfaceRef sc)
                 p_VH_Search->PeakBar = barToProcess;
                 p_VH_Search->ConfirmLevel = low;           // Low van anker candle
                 p_VH_Search->ConfirmLevelBar = barToProcess;  // Dit is de anker candle
+                
+                if (i_DetailedLog.GetYesNo()) {
+                    SCString logMsg;
+                    logMsg.Format("  VH Search STARTED: Bar %d, Close(%.2f) > PrevHigh(%.2f), Peak=%.2f, ConfirmLvl=%.2f",
+                        barToProcess, close, prev_high, high, low);
+                    sc.AddMessageToLog(logMsg, 0);
+                }
             }
         } else {
             // Update bestaande VH zoektocht: hogere high gevonden
             if (high > p_VH_Search->PeakHigh) {
+                float oldPeak = p_VH_Search->PeakHigh;
+                float oldConfirm = p_VH_Search->ConfirmLevel;
+                
                 p_VH_Search->PeakHigh = high;
                 p_VH_Search->PeakBar = barToProcess;
                 p_VH_Search->ConfirmLevel = low;           // Low van nieuwe anker candle
                 p_VH_Search->ConfirmLevelBar = barToProcess;  // Nieuwe anker candle
+                
+                if (i_DetailedLog.GetYesNo()) {
+                    SCString logMsg;
+                    logMsg.Format("  VH Search UPDATED: Bar %d, Peak %.2f->%.2f, ConfirmLvl %.2f->%.2f",
+                        barToProcess, oldPeak, high, oldConfirm, low);
+                    sc.AddMessageToLog(logMsg, 0);
+                }
             }
         }
 
@@ -236,14 +299,31 @@ SCSFExport scsf_VHVLTrendIndicator_Fixed(SCStudyInterfaceRef sc)
                 p_VL_Search->TroughBar = barToProcess;
                 p_VL_Search->ConfirmLevel = high;          // High van anker candle
                 p_VL_Search->ConfirmLevelBar = barToProcess;  // Dit is de anker candle
+                
+                if (i_DetailedLog.GetYesNo()) {
+                    SCString logMsg;
+                    logMsg.Format("  VL Search STARTED: Bar %d, Close(%.2f) < PrevLow(%.2f), Trough=%.2f, ConfirmLvl=%.2f",
+                        barToProcess, close, prev_low, low, high);
+                    sc.AddMessageToLog(logMsg, 0);
+                }
             }
         } else {
             // Update bestaande VL zoektocht: lagere low gevonden
             if (low < p_VL_Search->TroughLow) {
+                float oldTrough = p_VL_Search->TroughLow;
+                float oldConfirm = p_VL_Search->ConfirmLevel;
+                
                 p_VL_Search->TroughLow = low;
                 p_VL_Search->TroughBar = barToProcess;
                 p_VL_Search->ConfirmLevel = high;          // High van nieuwe anker candle
                 p_VL_Search->ConfirmLevelBar = barToProcess;  // Nieuwe anker candle
+                
+                if (i_DetailedLog.GetYesNo()) {
+                    SCString logMsg;
+                    logMsg.Format("  VL Search UPDATED: Bar %d, Trough %.2f->%.2f, ConfirmLvl %.2f->%.2f",
+                        barToProcess, oldTrough, low, oldConfirm, high);
+                    sc.AddMessageToLog(logMsg, 0);
+                }
             }
         }
     } // Einde van shouldProcessNewBar
