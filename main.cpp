@@ -162,6 +162,12 @@ void ScanHigherTFBar(
     float prev_high = tfBar->PrevHigh;
     float prev_low = tfBar->PrevLow;
     
+    // Bij de allereerste bar (na recalc) is PrevHigh/Low = 0, gebruik dan huidige bar
+    if (prev_high == 0.0f && prev_low == 0.0f) {
+        prev_high = high;
+        prev_low = low;
+    }
+    
     float bodySize = (close > open) ? (close - open) : (open - close);
     float minBodySize = 2.0f * sc.TickSize;
     
@@ -1003,8 +1009,10 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
             if (p_1m_CurrentBar->IsComplete) {
                 ScanHigherTFBar(sc, p_1m, p_1m_CurrentBar, sg_1m_VH, sg_1m_VL,
                                i_1m_SymbolOffset.GetInt(), "1MIN", i_DetailedLog.GetYesNo());
-                p_1m_CurrentBar->SaveAsPrevious();
             }
+            
+            // Save huidige bar als previous VOOR reset
+            p_1m_CurrentBar->SaveAsPrevious();
             
             // Start new bar
             p_1m_CurrentBar->Reset();
@@ -1041,8 +1049,10 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
             if (p_5m_CurrentBar->IsComplete) {
                 ScanHigherTFBar(sc, p_5m, p_5m_CurrentBar, sg_5m_VH, sg_5m_VL,
                                i_5m_SymbolOffset.GetInt(), "5MIN", i_DetailedLog.GetYesNo());
-                p_5m_CurrentBar->SaveAsPrevious();
             }
+            
+            // Save huidige bar als previous VOOR reset
+            p_5m_CurrentBar->SaveAsPrevious();
             
             p_5m_CurrentBar->Reset();
             p_5m_CurrentBar->StartTime = currentBarTime;
@@ -1077,8 +1087,10 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
             if (p_15m_CurrentBar->IsComplete) {
                 ScanHigherTFBar(sc, p_15m, p_15m_CurrentBar, sg_15m_VH, sg_15m_VL,
                                i_15m_SymbolOffset.GetInt(), "15MIN", i_DetailedLog.GetYesNo());
-                p_15m_CurrentBar->SaveAsPrevious();
             }
+            
+            // Save huidige bar als previous VOOR reset
+            p_15m_CurrentBar->SaveAsPrevious();
             
             p_15m_CurrentBar->Reset();
             p_15m_CurrentBar->StartTime = currentBarTime;
