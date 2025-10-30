@@ -123,6 +123,17 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
     int i = sc.Index;
     if (i < 2) return;
 
+    // Detect full recalculation: als we terug gaan in tijd, reset state
+    if (i < p_15s->LastProcessedBar - 1) {
+        // Recalculation detected - reset alle state
+        *p_15s = s_TimeframeScanner();
+        if (i_DetailedLog.GetYesNo()) {
+            SCString msg;
+            msg.Format("RECALCULATION DETECTED at bar %d (LastProcessed was %d) - FULL RESET", i, p_15s->LastProcessedBar);
+            sc.AddMessageToLog(msg, 0);
+        }
+    }
+
     // Check of we deze bar al verwerkt hebben
     if (i <= p_15s->LastProcessedBar) {
         // Al verwerkt - skip naar visualisatie
