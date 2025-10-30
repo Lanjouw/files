@@ -134,22 +134,19 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         }
     }
 
-    // Check of we deze bar al verwerkt hebben
-    if (i <= p_15s->LastProcessedBar) {
+    // Simpele logica: verwerk bar i als die GROTER is dan LastProcessedBar
+    // Voor realtime: verwerk i-1 (gesloten bar), maar sla alleen op als nieuw
+    bool isLastBar = (i == sc.ArraySize - 1);
+    int barToProcess = isLastBar ? (i - 1) : i;
+    
+    // Skip als we deze bar al verwerkt hebben
+    if (barToProcess <= p_15s->LastProcessedBar) {
         // Al verwerkt - skip naar visualisatie
     } else {
-        // Nieuwe bar om te verwerken
-        bool isLastBar = (i == sc.ArraySize - 1);
-        int barToProcess = isLastBar ? (i - 1) : i;
-        
-        // Extra check: alleen verwerken als barToProcess > LastProcessedBar
-        if (barToProcess <= p_15s->LastProcessedBar) {
-            // Deze bar is al verwerkt, skip
-        } else {
         // ====================================================================
-        // VERWERK GESLOTEN BAR
+        // VERWERK NIEUWE GESLOTEN BAR
         // ====================================================================
-        p_15s->LastProcessedBar = i;  // Markeer HUIDIGE index als verwerkt, niet barToProcess!
+        p_15s->LastProcessedBar = barToProcess;  // Markeer deze bar als verwerkt!
         
         float high = sc.High[barToProcess];
         float low = sc.Low[barToProcess];
