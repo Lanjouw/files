@@ -200,6 +200,27 @@ void ScanHigherTFBar(
                 msg.Format("[%s] VH PLOTTED at 15s bar %d (scanned range %d-%d, Peak=%.2f)",
                     tfName, exact15sBar, startScan, endScan, sc.High[exact15sBar]);
                 sc.AddMessageToLog(msg, 0);
+                msg.Format("[%s]     Traffic light switched: Now waiting for VL", tfName);
+                sc.AddMessageToLog(msg, 0);
+            }
+            
+            // Check of VL search stale is (close > ConfirmLevel terwijl geblokkeerd)
+            if (scanner->VL_Active) {
+                bool wasAlreadyBroken = false;
+                // We scannen niet de hele geschiedenis, alleen checken of current bar het al breekt
+                if (close > scanner->VL_ConfirmLevel) {
+                    wasAlreadyBroken = true;
+                }
+                
+                if (wasAlreadyBroken) {
+                    scanner->VL_Active = false;
+                    scanner->VL_StartBar_15s = -1;
+                    if (detailedLog) {
+                        SCString msg;
+                        msg.Format("[%s]     VL search was already broken (close went > confirm while blocked), RESET", tfName);
+                        sc.AddMessageToLog(msg, 0);
+                    }
+                }
             }
         }
     }
@@ -228,6 +249,27 @@ void ScanHigherTFBar(
                 msg.Format("[%s] VL PLOTTED at 15s bar %d (scanned range %d-%d, Trough=%.2f)",
                     tfName, exact15sBar, startScan, endScan, sc.Low[exact15sBar]);
                 sc.AddMessageToLog(msg, 0);
+                msg.Format("[%s]     Traffic light switched: Now waiting for VH", tfName);
+                sc.AddMessageToLog(msg, 0);
+            }
+            
+            // Check of VH search stale is (close < ConfirmLevel terwijl geblokkeerd)
+            if (scanner->VH_Active) {
+                bool wasAlreadyBroken = false;
+                // We scannen niet de hele geschiedenis, alleen checken of current bar het al breekt
+                if (close < scanner->VH_ConfirmLevel) {
+                    wasAlreadyBroken = true;
+                }
+                
+                if (wasAlreadyBroken) {
+                    scanner->VH_Active = false;
+                    scanner->VH_StartBar_15s = -1;
+                    if (detailedLog) {
+                        SCString msg;
+                        msg.Format("[%s]     VH search was already broken (close went < confirm while blocked), RESET", tfName);
+                        sc.AddMessageToLog(msg, 0);
+                    }
+                }
             }
         }
     }
@@ -528,8 +570,6 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
     // ========================================================================
     // MAIN PROCESSING
     // ========================================================================
-    if (!i_15s_Enabled.GetYesNo()) return;
-    
     int i = sc.Index;
     if (i < 2) return;
 
@@ -537,22 +577,33 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
     if (i < p_15s->LastProcessedBar - 1) {
         // Recalculation detected - reset alle state
         *p_15s = s_TimeframeScanner();
+        *p_1m = s_TimeframeScanner();
+        *p_5m = s_TimeframeScanner();
+        *p_15m = s_TimeframeScanner();
+        p_1m_CurrentBar->Reset();
+        p_5m_CurrentBar->Reset();
+        p_15m_CurrentBar->Reset();
+        
         if (i_DetailedLog.GetYesNo()) {
             SCString msg;
-            msg.Format("RECALCULATION DETECTED at bar %d (LastProcessed was %d) - FULL RESET", i, p_15s->LastProcessedBar);
+            msg.Format("RECALCULATION DETECTED at bar %d (LastProcessed was %d) - FULL RESET ALL TIMEFRAMES", i, p_15s->LastProcessedBar);
             sc.AddMessageToLog(msg, 0);
         }
     }
 
-    // Simpele logica: verwerk bar i als die GROTER is dan LastProcessedBar
-    // Voor realtime: verwerk i-1 (gesloten bar), maar sla alleen op als nieuw
-    bool isLastBar = (i == sc.ArraySize - 1);
-    int barToProcess = isLastBar ? (i - 1) : i;
-    
-    // Skip als we deze bar al verwerkt hebben
-    if (barToProcess <= p_15s->LastProcessedBar) {
-        // Al verwerkt - skip naar visualisatie
-    } else {
+    // ========================================================================
+    // 15-SEC TIMEFRAME PROCESSING
+    // ========================================================================
+    if (i_15s_Enabled.GetYesNo()) {
+        // Simpele logica: verwerk bar i als die GROTER is dan LastProcessedBar
+        // Voor realtime: verwerk i-1 (gesloten bar), maar sla alleen op als nieuw
+        bool isLastBar = (i == sc.ArraySize - 1);
+        int barToProcess = isLastBar ? (i - 1) : i;
+        
+        // Skip als we deze bar al verwerkt hebben
+        if (barToProcess <= p_15s->LastProcessedBar) {
+            // Al verwerkt - skip naar visualisatie
+        } else {
         // ====================================================================
         // VERWERK NIEUWE GESLOTEN BAR
         // ====================================================================
@@ -904,6 +955,7 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
             sc.UseTool(tool);
         }
     }
+    } // End 15-sec processing
     
     // ========================================================================
     // HIGHER TIMEFRAMES PROCESSING
