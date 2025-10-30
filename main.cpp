@@ -419,8 +419,7 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
                 sc.AddMessageToLog(msg, 0);
             }
         }
-        } // Einde barToProcess > LastProcessedBar check
-    } // Einde i > LastProcessedBar check
+    } // Einde processing block
 
     // ========================================================================
     // STAP 3: VISUALISATIE - 1 LIJN (van "next plot" search)
