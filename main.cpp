@@ -81,13 +81,13 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         i_DetailedLog.SetYesNo(false);
 
         sg_15s_VH.Name = "15s VH";
-        sg_15s_VH.DrawStyle = DRAWSTYLE_CIRCLE;
+        sg_15s_VH.DrawStyle = DRAWSTYLE_POINT;  // Punt/circle
         sg_15s_VH.PrimaryColor = RGB(0, 255, 0);
         sg_15s_VH.LineWidth = 8;
         sg_15s_VH.DrawZeros = false;
         
         sg_15s_VL.Name = "15s VL";
-        sg_15s_VL.DrawStyle = DRAWSTYLE_CIRCLE;
+        sg_15s_VL.DrawStyle = DRAWSTYLE_POINT;  // Punt/circle
         sg_15s_VL.PrimaryColor = RGB(255, 0, 0);
         sg_15s_VL.LineWidth = 8;
         sg_15s_VL.DrawZeros = false;
