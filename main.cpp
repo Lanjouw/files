@@ -247,6 +247,10 @@ SCSFExport scsf_VHVLTrendIndicator_Fixed(SCStudyInterfaceRef sc)
             sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_TEXT, TEXT_NUMBER_DEBUG);
         }
 
+        // BELANGRIJK: Lijn eindpunt moet LAATSTE GESLOTEN BAR zijn, niet de developing bar
+        // Als huidige bar nog niet gesloten is, gebruik dan de vorige bar als eindpunt
+        int lineEndBar = barToAnalyze;  // Dit is altijd een gesloten bar
+
         // --- VH LIJN ---
         if (p_VH_Search->IsActive) {
             s_UseTool VH_Line;
@@ -255,7 +259,7 @@ SCSFExport scsf_VHVLTrendIndicator_Fixed(SCStudyInterfaceRef sc)
             VH_Line.AddMethod = UTAM_ADD_OR_ADJUST;
             VH_Line.BeginIndex = p_VH_Search->ConfirmLevelBar;
             VH_Line.BeginValue = p_VH_Search->ConfirmLevel;
-            VH_Line.EndIndex = i;
+            VH_Line.EndIndex = lineEndBar;  // Laatste gesloten bar
             VH_Line.EndValue = p_VH_Search->ConfirmLevel;
             VH_Line.Color = i_LineColor.GetColor();
             VH_Line.LineWidth = i_LineWidth.GetInt();
@@ -273,7 +277,7 @@ SCSFExport scsf_VHVLTrendIndicator_Fixed(SCStudyInterfaceRef sc)
             VL_Line.AddMethod = UTAM_ADD_OR_ADJUST;
             VL_Line.BeginIndex = p_VL_Search->ConfirmLevelBar;
             VL_Line.BeginValue = p_VL_Search->ConfirmLevel;
-            VL_Line.EndIndex = i;
+            VL_Line.EndIndex = lineEndBar;  // Laatste gesloten bar
             VL_Line.EndValue = p_VL_Search->ConfirmLevel;
             VL_Line.Color = i_LineColor.GetColor();
             VL_Line.LineWidth = i_LineWidth.GetInt();
