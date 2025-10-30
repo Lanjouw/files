@@ -136,6 +136,9 @@ SCSFExport scsf_VHVLTrendIndicator_Fixed(SCStudyInterfaceRef sc)
         barToAnalyze = i - 1;
     }
 
+    // Declareer variabelen voor scope toegankelijkheid
+    float currentClose = sc.Close[barToAnalyze];
+
     // ========================================================================
     // STAP 1: BEVESTIGING CHECKEN (alleen op GESLOTEN bars)
     // ========================================================================
@@ -144,14 +147,12 @@ SCSFExport scsf_VHVLTrendIndicator_Fixed(SCStudyInterfaceRef sc)
     
     // Alleen bevestigen als we een nieuwe gesloten bar hebben
     if (!isLastBar || sc.GetBarHasClosedStatus(i) == BHCS_BAR_HAS_CLOSED) {
-        float close = sc.Close[barToAnalyze];
-        
         vh_isConfirmed = (p_VH_Search->IsActive && 
-                         close < p_VH_Search->ConfirmLevel &&
+                         currentClose < p_VH_Search->ConfirmLevel &&
                          p_TrafficLight->NextPlotType == PT_VH);
         
         vl_isConfirmed = (p_VL_Search->IsActive && 
-                         close > p_VL_Search->ConfirmLevel &&
+                         currentClose > p_VL_Search->ConfirmLevel &&
                          p_TrafficLight->NextPlotType == PT_VL);
     }
 
@@ -314,7 +315,8 @@ SCSFExport scsf_VHVLTrendIndicator_Fixed(SCStudyInterfaceRef sc)
             }
             
             ss << "\nCurrent Bar: " << i;
-            ss << "\nPrev Close: " << sc.FormatGraphValue(prev_close, sc.BaseGraphValueFormat);
+            ss << "\nLast Closed Bar: " << barToAnalyze;
+            ss << "\nLast Close: " << sc.FormatGraphValue(currentClose, sc.BaseGraphValueFormat);
             
             s_UseTool TextTool;
             TextTool.DrawingType = DRAWING_TEXT;
