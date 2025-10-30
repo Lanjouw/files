@@ -46,13 +46,28 @@ struct s_HigherTFBar {
     float Close = 0.0f;
     int StartBar_15s = -1;            // Eerste 15-sec bar van deze TF bar
     int EndBar_15s = -1;              // Laatste 15-sec bar van deze TF bar
+    int HighBar_15s = -1;             // 15-sec bar met hoogste high in deze TF bar
+    int LowBar_15s = -1;              // 15-sec bar met laagste low in deze TF bar
     bool IsComplete = false;
+    
+    // Vorige bar (voor prev_high/prev_low)
+    float PrevHigh = 0.0f;
+    float PrevLow = 0.0f;
+    float PrevClose = 0.0f;
     
     void Reset() {
         StartTime = 0;
         Open = High = Low = Close = 0.0f;
         StartBar_15s = EndBar_15s = -1;
+        HighBar_15s = LowBar_15s = -1;
         IsComplete = false;
+        // PrevHigh/PrevLow blijven behouden!
+    }
+    
+    void SaveAsPrevious() {
+        PrevHigh = High;
+        PrevLow = Low;
+        PrevClose = Close;
     }
 };
 
@@ -137,18 +152,9 @@ void ScanHigherTFBar(
     float close = tfBar->Close;
     int barIndex = scanner->LastProcessedBar + 1;  // TF bar index
     
-    // Get previous bar data (from our own historical tracking - we'd need to store this)
-    // For now, we'll use the last complete TF bar's close as prev_high/prev_low
-    // This is a simplification - in production, you'd track full bar history
-    
-    float prev_high = 0.0f;
-    float prev_low = 0.0f;
-    
-    // We need previous bar data - for now, approximate using 15-sec data
-    if (tfBar->StartBar_15s > 0) {
-        prev_high = sc.High[tfBar->StartBar_15s - 1];
-        prev_low = sc.Low[tfBar->StartBar_15s - 1];
-    }
+    // Gebruik de vorige TF bar data
+    float prev_high = tfBar->PrevHigh;
+    float prev_low = tfBar->PrevLow;
     
     float bodySize = (close > open) ? (close - open) : (open - close);
     float minBodySize = 2.0f * sc.TickSize;
@@ -168,14 +174,8 @@ void ScanHigherTFBar(
     
     // Handle VH confirmation
     if (vh_confirmed) {
-        // Find exact 15-sec bar with highest high in the range
-        int start15s = (scanner->LastVL_PlotBar >= 0) ? 
-                      // Find start of that TF bar's 15s range (we'd need to track this)
-                      tfBar->StartBar_15s : 
-                      tfBar->StartBar_15s;
-        int end15s = tfBar->EndBar_15s;
-        
-        int exact15sBar = FindExact15sBarWithHighestHigh(sc, start15s, end15s);
+        // Gebruik de exact 15-sec bar die we tijdens de search hebben bijgehouden
+        int exact15sBar = scanner->VH_PeakBar_15s;
         
         if (exact15sBar >= 0) {
             float plotPrice = sc.High[exact15sBar] + (symbolOffset * sc.TickSize);
@@ -185,6 +185,7 @@ void ScanHigherTFBar(
             scanner->WhatToPlotNext = s_TimeframeScanner::PLOT_VL;
             scanner->LastVH_PlotBar = barIndex;
             scanner->VH_Active = false;
+            scanner->VH_PeakBar_15s = -1;
             
             if (detailedLog) {
                 SCString msg;
@@ -197,12 +198,8 @@ void ScanHigherTFBar(
     
     // Handle VL confirmation
     if (vl_confirmed) {
-        int start15s = (scanner->LastVH_PlotBar >= 0) ? 
-                      tfBar->StartBar_15s : 
-                      tfBar->StartBar_15s;
-        int end15s = tfBar->EndBar_15s;
-        
-        int exact15sBar = FindExact15sBarWithLowestLow(sc, start15s, end15s);
+        // Gebruik de exact 15-sec bar die we tijdens de search hebben bijgehouden
+        int exact15sBar = scanner->VL_TroughBar_15s;
         
         if (exact15sBar >= 0) {
             float plotPrice = sc.Low[exact15sBar] - (symbolOffset * sc.TickSize);
@@ -212,6 +209,7 @@ void ScanHigherTFBar(
             scanner->WhatToPlotNext = s_TimeframeScanner::PLOT_VH;
             scanner->LastVL_PlotBar = barIndex;
             scanner->VL_Active = false;
+            scanner->VL_TroughBar_15s = -1;
             
             if (detailedLog) {
                 SCString msg;
@@ -228,6 +226,7 @@ void ScanHigherTFBar(
             scanner->VH_Active = true;
             scanner->VH_PeakHigh = high;
             scanner->VH_PeakBar = barIndex;
+            scanner->VH_PeakBar_15s = tfBar->HighBar_15s;  // Exacte 15-sec bar
             scanner->VH_ConfirmLevel = low;
             scanner->VH_ConfirmLevelBar = barIndex;
         }
@@ -238,6 +237,7 @@ void ScanHigherTFBar(
         if (high > scanner->VH_PeakHigh) {
             scanner->VH_PeakHigh = high;
             scanner->VH_PeakBar = barIndex;
+            scanner->VH_PeakBar_15s = tfBar->HighBar_15s;  // Exacte 15-sec bar
             peakUpdated = true;
         }
         
@@ -253,6 +253,7 @@ void ScanHigherTFBar(
             scanner->VL_Active = true;
             scanner->VL_TroughLow = low;
             scanner->VL_TroughBar = barIndex;
+            scanner->VL_TroughBar_15s = tfBar->LowBar_15s;  // Exacte 15-sec bar
             scanner->VL_ConfirmLevel = high;
             scanner->VL_ConfirmLevelBar = barIndex;
         }
@@ -263,6 +264,7 @@ void ScanHigherTFBar(
         if (low < scanner->VL_TroughLow) {
             scanner->VL_TroughLow = low;
             scanner->VL_TroughBar = barIndex;
+            scanner->VL_TroughBar_15s = tfBar->LowBar_15s;  // Exacte 15-sec bar
             troughUpdated = true;
         }
         
@@ -913,6 +915,7 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
             if (p_1m_CurrentBar->IsComplete) {
                 ScanHigherTFBar(sc, p_1m, p_1m_CurrentBar, sg_1m_VH, sg_1m_VL,
                                i_1m_SymbolOffset.GetInt(), "1MIN", i_DetailedLog.GetYesNo());
+                p_1m_CurrentBar->SaveAsPrevious();
             }
             
             // Start new bar
@@ -924,18 +927,21 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
             p_1m_CurrentBar->Close = sc.Close[i];
             p_1m_CurrentBar->StartBar_15s = i;
             p_1m_CurrentBar->EndBar_15s = i;
-            p_1m_CurrentBar->IsComplete = false;
+            p_1m_CurrentBar->HighBar_15s = i;
+            p_1m_CurrentBar->LowBar_15s = i;
+            p_1m_CurrentBar->IsComplete = true;  // Wordt compleet bij volgende bar
         } else {
             // Update existing bar
-            if (sc.High[i] > p_1m_CurrentBar->High) p_1m_CurrentBar->High = sc.High[i];
-            if (sc.Low[i] < p_1m_CurrentBar->Low) p_1m_CurrentBar->Low = sc.Low[i];
+            if (sc.High[i] > p_1m_CurrentBar->High) {
+                p_1m_CurrentBar->High = sc.High[i];
+                p_1m_CurrentBar->HighBar_15s = i;
+            }
+            if (sc.Low[i] < p_1m_CurrentBar->Low) {
+                p_1m_CurrentBar->Low = sc.Low[i];
+                p_1m_CurrentBar->LowBar_15s = i;
+            }
             p_1m_CurrentBar->Close = sc.Close[i];
             p_1m_CurrentBar->EndBar_15s = i;
-            
-            // Mark as complete if this is not the last bar
-            if (i < sc.ArraySize - 1) {
-                p_1m_CurrentBar->IsComplete = true;
-            }
         }
     }
     
@@ -947,6 +953,7 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
             if (p_5m_CurrentBar->IsComplete) {
                 ScanHigherTFBar(sc, p_5m, p_5m_CurrentBar, sg_5m_VH, sg_5m_VL,
                                i_5m_SymbolOffset.GetInt(), "5MIN", i_DetailedLog.GetYesNo());
+                p_5m_CurrentBar->SaveAsPrevious();
             }
             
             p_5m_CurrentBar->Reset();
@@ -957,16 +964,20 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
             p_5m_CurrentBar->Close = sc.Close[i];
             p_5m_CurrentBar->StartBar_15s = i;
             p_5m_CurrentBar->EndBar_15s = i;
-            p_5m_CurrentBar->IsComplete = false;
+            p_5m_CurrentBar->HighBar_15s = i;
+            p_5m_CurrentBar->LowBar_15s = i;
+            p_5m_CurrentBar->IsComplete = true;
         } else {
-            if (sc.High[i] > p_5m_CurrentBar->High) p_5m_CurrentBar->High = sc.High[i];
-            if (sc.Low[i] < p_5m_CurrentBar->Low) p_5m_CurrentBar->Low = sc.Low[i];
+            if (sc.High[i] > p_5m_CurrentBar->High) {
+                p_5m_CurrentBar->High = sc.High[i];
+                p_5m_CurrentBar->HighBar_15s = i;
+            }
+            if (sc.Low[i] < p_5m_CurrentBar->Low) {
+                p_5m_CurrentBar->Low = sc.Low[i];
+                p_5m_CurrentBar->LowBar_15s = i;
+            }
             p_5m_CurrentBar->Close = sc.Close[i];
             p_5m_CurrentBar->EndBar_15s = i;
-            
-            if (i < sc.ArraySize - 1) {
-                p_5m_CurrentBar->IsComplete = true;
-            }
         }
     }
     
@@ -978,6 +989,7 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
             if (p_15m_CurrentBar->IsComplete) {
                 ScanHigherTFBar(sc, p_15m, p_15m_CurrentBar, sg_15m_VH, sg_15m_VL,
                                i_15m_SymbolOffset.GetInt(), "15MIN", i_DetailedLog.GetYesNo());
+                p_15m_CurrentBar->SaveAsPrevious();
             }
             
             p_15m_CurrentBar->Reset();
@@ -988,16 +1000,20 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
             p_15m_CurrentBar->Close = sc.Close[i];
             p_15m_CurrentBar->StartBar_15s = i;
             p_15m_CurrentBar->EndBar_15s = i;
-            p_15m_CurrentBar->IsComplete = false;
+            p_15m_CurrentBar->HighBar_15s = i;
+            p_15m_CurrentBar->LowBar_15s = i;
+            p_15m_CurrentBar->IsComplete = true;
         } else {
-            if (sc.High[i] > p_15m_CurrentBar->High) p_15m_CurrentBar->High = sc.High[i];
-            if (sc.Low[i] < p_15m_CurrentBar->Low) p_15m_CurrentBar->Low = sc.Low[i];
+            if (sc.High[i] > p_15m_CurrentBar->High) {
+                p_15m_CurrentBar->High = sc.High[i];
+                p_15m_CurrentBar->HighBar_15s = i;
+            }
+            if (sc.Low[i] < p_15m_CurrentBar->Low) {
+                p_15m_CurrentBar->Low = sc.Low[i];
+                p_15m_CurrentBar->LowBar_15s = i;
+            }
             p_15m_CurrentBar->Close = sc.Close[i];
             p_15m_CurrentBar->EndBar_15s = i;
-            
-            if (i < sc.ArraySize - 1) {
-                p_15m_CurrentBar->IsComplete = true;
-            }
         }
     }
 }
