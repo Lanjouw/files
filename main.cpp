@@ -285,6 +285,13 @@ void ScanHigherTFBar(
             // Start 15-sec range vanaf laatste VL of vanaf start
             scanner->VH_StartBar_15s = (scanner->LastVL_PlotBar_15s >= 0) ? 
                                        scanner->LastVL_PlotBar_15s : tfBar->StartBar_15s;
+            
+            // ALTIJD loggen bij search start
+            SCString msg;
+            msg.Format("[%s] *** VH SEARCH STARTED *** Bar %d, Close(%.2f)>PrevHigh(%.2f), Peak=%.2f, ConfirmLvl=%.2f, NextPlot=%s",
+                tfName, barIndex, close, prev_high, high, low, 
+                (scanner->WhatToPlotNext == s_TimeframeScanner::PLOT_VH ? "VH" : "VL"));
+            sc.AddMessageToLog(msg, 0);
         }
     } else {
         if (high > scanner->VH_PeakHigh) {
@@ -308,6 +315,13 @@ void ScanHigherTFBar(
             // Start 15-sec range vanaf laatste VH of vanaf start
             scanner->VL_StartBar_15s = (scanner->LastVH_PlotBar_15s >= 0) ? 
                                        scanner->LastVH_PlotBar_15s : tfBar->StartBar_15s;
+            
+            // ALTIJD loggen bij search start
+            SCString msg;
+            msg.Format("[%s] *** VL SEARCH STARTED *** Bar %d, Close(%.2f)<PrevLow(%.2f), Trough=%.2f, ConfirmLvl=%.2f, NextPlot=%s",
+                tfName, barIndex, close, prev_low, low, high,
+                (scanner->WhatToPlotNext == s_TimeframeScanner::PLOT_VH ? "VH" : "VL"));
+            sc.AddMessageToLog(msg, 0);
         }
     } else {
         if (low < scanner->VL_TroughLow) {
