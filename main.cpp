@@ -218,6 +218,9 @@ SCSFExport scsf_VHVLTrendIndicator_Fixed(SCStudyInterfaceRef sc)
                 sc.AddMessageToLog(logMsg, 0);
             }
             
+            // DIRECT oude VH lijn verwijderen
+            sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, LINE_NUMBER_VH);
+            
             // Wissel traffic light
             p_TrafficLight->NextPlotType = PT_VL;
             
@@ -236,6 +239,9 @@ SCSFExport scsf_VHVLTrendIndicator_Fixed(SCStudyInterfaceRef sc)
                     p_VL_Search->TroughBar, p_VL_Search->TroughLow, p_VL_Search->ConfirmLevel);
                 sc.AddMessageToLog(logMsg, 0);
             }
+            
+            // DIRECT oude VL lijn verwijderen
+            sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, LINE_NUMBER_VL);
             
             // Wissel traffic light
             p_TrafficLight->NextPlotType = PT_VH;
