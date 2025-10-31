@@ -358,8 +358,10 @@ void ScanHigherTFBar(
             }
         }
         
-        if (close > prev_high) {
-            // Nieuwe anchor bar
+        // ConfirmLevel ALLEEN updaten als er een HOGERE PEAK is!
+        // Dit voorkomt dat ConfirmLevel omhoog gaat terwijl de peak niet stijgt
+        if (close > prev_high && high > scanner->VH_PeakHigh) {
+            // Nieuwe anchor bar met hogere peak
             scanner->VH_ConfirmLevel = low;  // FIXED: LOW van anchor bar (niet HIGH!)
             scanner->VH_ConfirmLevelBar = barIndex;
             
@@ -368,8 +370,8 @@ void ScanHigherTFBar(
             
             if (detailedLog) {
                 SCString msg;
-                msg.Format("[%s]   VH ANCHOR UPDATED: TFBar %d, NewConfirmLvl=%.2f (LOW@15s:%d)", 
-                    tfName, barIndex, low, tfBar->LowBar_15s);
+                msg.Format("[%s]   VH ANCHOR UPDATED: TFBar %d, NewConfirmLvl=%.2f (LOW@15s:%d), NewPeak=%.2f", 
+                    tfName, barIndex, low, tfBar->LowBar_15s, high);
                 sc.AddMessageToLog(msg, 0);
             }
         }
@@ -411,8 +413,10 @@ void ScanHigherTFBar(
             }
         }
         
-        if (close < prev_low) {
-            // Nieuwe anchor bar
+        // ConfirmLevel ALLEEN updaten als er een LAGERE TROUGH is!
+        // Dit voorkomt dat ConfirmLevel omlaag gaat terwijl de trough niet daalt
+        if (close < prev_low && low < scanner->VL_TroughLow) {
+            // Nieuwe anchor bar met lagere trough
             scanner->VL_ConfirmLevel = high;  // FIXED: HIGH van anchor bar (niet LOW!)
             scanner->VL_ConfirmLevelBar = barIndex;
             
@@ -421,8 +425,8 @@ void ScanHigherTFBar(
             
             if (detailedLog) {
                 SCString msg;
-                msg.Format("[%s]   VL ANCHOR UPDATED: TFBar %d, NewConfirmLvl=%.2f (HIGH@15s:%d)", 
-                    tfName, barIndex, high, tfBar->HighBar_15s);
+                msg.Format("[%s]   VL ANCHOR UPDATED: TFBar %d, NewConfirmLvl=%.2f (HIGH@15s:%d), NewTrough=%.2f", 
+                    tfName, barIndex, high, tfBar->HighBar_15s, low);
                 sc.AddMessageToLog(msg, 0);
             }
         }
@@ -916,14 +920,15 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
                         sc.AddMessageToLog(msg, 0);
                     }
                 }
-                if (close > prev_high) {
+                // ConfirmLevel ALLEEN updaten als er HOGERE PEAK is!
+                if (close > prev_high && high > p_15s->VH_PeakHigh) {
                     p_15s->VH_ConfirmLevel = low;  // CORRECT: LOW van anchor bar
                     p_15s->VH_ConfirmLevelBar = barToProcess;
                     
                     if (i_DetailedLog.GetYesNo()) {
                         SCString msg;
-                        msg.Format("[15s] VH ANCHOR UPDATED at bar %d: ConfirmLvl→%.2f (LOW), Close(%.2f)>PrevHigh(%.2f)",
-                            barToProcess, low, close, prev_high);
+                        msg.Format("[15s] VH ANCHOR UPDATED at bar %d: ConfirmLvl→%.2f (LOW), NewPeak=%.2f",
+                            barToProcess, low, high);
                         sc.AddMessageToLog(msg, 0);
                     }
                 }
@@ -956,14 +961,15 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
                         sc.AddMessageToLog(msg, 0);
                     }
                 }
-                if (close < prev_low) {
+                // ConfirmLevel ALLEEN updaten als er LAGERE TROUGH is!
+                if (close < prev_low && low < p_15s->VL_TroughLow) {
                     p_15s->VL_ConfirmLevel = high;  // CORRECT: HIGH van anchor bar
                     p_15s->VL_ConfirmLevelBar = barToProcess;
                     
                     if (i_DetailedLog.GetYesNo()) {
                         SCString msg;
-                        msg.Format("[15s] VL ANCHOR UPDATED at bar %d: ConfirmLvl→%.2f (HIGH), Close(%.2f)<PrevLow(%.2f)",
-                            barToProcess, high, close, prev_low);
+                        msg.Format("[15s] VL ANCHOR UPDATED at bar %d: ConfirmLvl→%.2f (HIGH), NewTrough=%.2f",
+                            barToProcess, high, low);
                         sc.AddMessageToLog(msg, 0);
                     }
                 }
