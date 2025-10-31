@@ -253,6 +253,9 @@ void ScanHigherTFBar(
             scanner->VH_Active = false;
             scanner->VH_StartBar_15s = -1;
             
+            // NIEUW: Start VL search range vanaf DEZE plot (niet wachten tot VL search start)
+            scanner->VL_StartBar_15s = exact15sBar;
+            
             SCString msg;
             msg.Format("[%s] VH PLOTTED at 15s bar %d (TF bar %d, scanned range %d-%d, Peak=%.2f)",
                 tfName, exact15sBar, barIndex, startScan, endScan, sc.High[exact15sBar]);
@@ -294,6 +297,9 @@ void ScanHigherTFBar(
             scanner->VL_Active = false;
             scanner->VL_StartBar_15s = -1;
             
+            // NIEUW: Start VH search range vanaf DEZE plot (niet wachten tot VH search start)
+            scanner->VH_StartBar_15s = exact15sBar;
+            
             SCString msg;
             msg.Format("[%s] VL PLOTTED at 15s bar %d (TF bar %d, scanned range %d-%d, Trough=%.2f)",
                 tfName, exact15sBar, barIndex, startScan, endScan, sc.Low[exact15sBar]);
@@ -328,9 +334,11 @@ void ScanHigherTFBar(
             // CORRECT: Gebruik de 15s bar waar de LOW zich bevindt
             scanner->VH_ConfirmLevelBar_15s = tfBar->LowBar_15s;
             
-            // Start 15s range tracking
-            scanner->VH_StartBar_15s = (scanner->LastVL_PlotBar_15s >= 0) ? 
-                                       scanner->LastVL_PlotBar_15s : tfBar->StartBar_15s;
+            // Start 15s range tracking - gebruik preset value (van vorige plot) of deze TF bar
+            if (scanner->VH_StartBar_15s < 0) {
+                scanner->VH_StartBar_15s = (scanner->LastVL_PlotBar_15s >= 0) ? 
+                                           scanner->LastVL_PlotBar_15s : tfBar->StartBar_15s;
+            }
             
             SCString msg;
             msg.Format("[%s] *** VH SEARCH STARTED *** TFBar %d (15s:%d-%d), Close(%.2f)>PrevHigh(%.2f), Peak=%.2f, ConfirmLvl=%.2f (LOW@15s:%d)",
@@ -379,9 +387,11 @@ void ScanHigherTFBar(
             // CORRECT: Gebruik de 15s bar waar de HIGH zich bevindt
             scanner->VL_ConfirmLevelBar_15s = tfBar->HighBar_15s;
             
-            // Start 15s range tracking
-            scanner->VL_StartBar_15s = (scanner->LastVH_PlotBar_15s >= 0) ? 
-                                       scanner->LastVH_PlotBar_15s : tfBar->StartBar_15s;
+            // Start 15s range tracking - gebruik preset value (van vorige plot) of deze TF bar
+            if (scanner->VL_StartBar_15s < 0) {
+                scanner->VL_StartBar_15s = (scanner->LastVH_PlotBar_15s >= 0) ? 
+                                           scanner->LastVH_PlotBar_15s : tfBar->StartBar_15s;
+            }
             
             SCString msg;
             msg.Format("[%s] *** VL SEARCH STARTED *** TFBar %d (15s:%d-%d), Close(%.2f)<PrevLow(%.2f), Trough=%.2f, ConfirmLvl=%.2f (HIGH@15s:%d)",
