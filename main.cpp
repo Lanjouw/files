@@ -349,7 +349,7 @@ void ScanHigherTFBar(
             scanner->VH_PeakBar = barIndex;           // TF bar index
             scanner->VH_ConfirmLevel = low;           // TF bar low
             scanner->VH_ConfirmLevelBar = barIndex;   // TF bar index
-            scanner->VH_ConfirmLevelBar_15s = tfBar->StartBar_15s;  // Voor confirm lijn
+            scanner->VH_ConfirmLevelBar_15s = tfBar->LowBar_15s;  // 15s bar waar LOW is!
             // 15-sec range start: vanaf laatste VL plot of vanaf deze TF bar start
             scanner->VH_StartBar_15s = (scanner->LastVL_PlotBar_15s >= 0) ? 
                                        scanner->LastVL_PlotBar_15s : tfBar->StartBar_15s;
@@ -377,7 +377,7 @@ void ScanHigherTFBar(
             // Nieuwe anchor: TF close > TF prev_high -> update ConfirmLevel
             scanner->VH_ConfirmLevel = low;           // TF bar low
             scanner->VH_ConfirmLevelBar = barIndex;
-            scanner->VH_ConfirmLevelBar_15s = tfBar->StartBar_15s;
+            scanner->VH_ConfirmLevelBar_15s = tfBar->LowBar_15s;  // 15s bar waar de LOW is!
             
             if (detailedLog) {
                 SCString msg;
@@ -396,7 +396,7 @@ void ScanHigherTFBar(
             scanner->VL_TroughBar = barIndex;         // TF bar index
             scanner->VL_ConfirmLevel = high;          // TF bar high
             scanner->VL_ConfirmLevelBar = barIndex;   // TF bar index
-            scanner->VL_ConfirmLevelBar_15s = tfBar->StartBar_15s;  // Voor confirm lijn
+            scanner->VL_ConfirmLevelBar_15s = tfBar->HighBar_15s;  // 15s bar waar HIGH is!
             // 15-sec range start: vanaf laatste VH plot of vanaf deze TF bar start
             scanner->VL_StartBar_15s = (scanner->LastVH_PlotBar_15s >= 0) ? 
                                        scanner->LastVH_PlotBar_15s : tfBar->StartBar_15s;
@@ -424,7 +424,7 @@ void ScanHigherTFBar(
             // Nieuwe anchor: TF close < TF prev_low -> update ConfirmLevel
             scanner->VL_ConfirmLevel = high;          // TF bar high
             scanner->VL_ConfirmLevelBar = barIndex;
-            scanner->VL_ConfirmLevelBar_15s = tfBar->StartBar_15s;
+            scanner->VL_ConfirmLevelBar_15s = tfBar->HighBar_15s;  // 15s bar waar de HIGH is!
             
             if (detailedLog) {
                 SCString msg;
