@@ -9,41 +9,44 @@ struct s_TimeframeScanner {
     enum NextPlot { PLOT_VH, PLOT_VL };
     enum LastPlotted { NONE, LAST_VH, LAST_VL };
     
-    NextPlot WhatToPlotNext = PLOT_VH;  // Traffic light: wat mag als volgende geplot worden
-    LastPlotted LastPlottedType = NONE;  // Wat hebben we als laatste geplot (extra veiligheid)
+    NextPlot WhatToPlotNext = PLOT_VH;
+    LastPlotted LastPlottedType = NONE;
     
-    // VH zoektocht (loopt ALTIJD parallel)
+    // VH zoektocht
     bool VH_Active = false;
     float VH_PeakHigh = 0.0f;
-    int VH_PeakBar = -1;              // Bar index in EIGEN timeframe
-    int VH_PeakBar_15s = -1;          // Exacte 15-sec bar met hoogste high (voor multi-TF)
-    float VH_ConfirmLevel = 0.0f;     // Low van de anchor bar
-    int VH_ConfirmLevelBar = -1;      // Bar waar de confirm level van is (eigen TF)
-    int VH_ConfirmLevelBar_15s = -1;  // Confirm level bar in 15-sec (voor lijn tekenen!)
-    int VH_StartBar_15s = -1;         // Start van 15-sec range voor deze search
+    int VH_PeakBar = -1;
+    int VH_PeakBar_15s = -1;
+    float VH_ConfirmLevel = 0.0f;
+    int VH_ConfirmLevelBar = -1;
+    int VH_ConfirmLevelBar_15s = -1;
+    int VH_StartBar_15s = -1;
     
-    // VL zoektocht (loopt ALTIJD parallel)
+    // VL zoektocht
     bool VL_Active = false;
     float VL_TroughLow = 0.0f;
-    int VL_TroughBar = -1;            // Bar index in EIGEN timeframe
-    int VL_TroughBar_15s = -1;        // Exacte 15-sec bar met laagste low (voor multi-TF)
-    float VL_ConfirmLevel = 0.0f;     // High van de anchor bar
-    int VL_ConfirmLevelBar = -1;      // Bar waar de confirm level van is (eigen TF)
-    int VL_ConfirmLevelBar_15s = -1;  // Confirm level bar in 15-sec (voor lijn tekenen!)
-    int VL_StartBar_15s = -1;         // Start van 15-sec range voor deze search
+    int VL_TroughBar = -1;
+    int VL_TroughBar_15s = -1;
+    float VL_ConfirmLevel = 0.0f;
+    int VL_ConfirmLevelBar = -1;
+    int VL_ConfirmLevelBar_15s = -1;
+    int VL_StartBar_15s = -1;
     
     int LastProcessedBar = -1;
     
-    // Voor hogere timeframes: tracking van laatste plots (voor range scanning)
-    int LastVH_PlotBar = -1;          // Laatste VH plot (in eigen TF)
-    int LastVL_PlotBar = -1;          // Laatste VL plot (in eigen TF)
-    int LastVH_PlotBar_15s = -1;      // Laatste VH plot (exact 15-sec bar)
-    int LastVL_PlotBar_15s = -1;      // Laatste VL plot (exact 15-sec bar)
+    // Voor hogere timeframes: tracking
+    int LastVH_PlotBar = -1;
+    int LastVL_PlotBar = -1;
+    int LastVH_PlotBar_15s = -1;
+    int LastVL_PlotBar_15s = -1;
     
     // Voor zigzag lijnen
-    int LastPlot_15s = -1;            // Laatste plot (VH of VL) 15-sec bar
-    float LastPlot_Price = 0.0f;      // Laatste plot prijs
-    int ZigzagLineCounter = 0;        // Counter voor unieke line numbers
+    int LastPlot_15s = -1;
+    float LastPlot_Price = 0.0f;
+    int ZigzagLineCounter = 0;
+    
+    // Voor Higher TF: bar counter (om correcte barIndex te hebben)
+    int TFBarCounter = 0;
 };
 
 // ============================================================================
@@ -55,10 +58,10 @@ struct s_HigherTFBar {
     float High = 0.0f;
     float Low = 0.0f;
     float Close = 0.0f;
-    int StartBar_15s = -1;            // Eerste 15-sec bar van deze TF bar
-    int EndBar_15s = -1;              // Laatste 15-sec bar van deze TF bar
-    int HighBar_15s = -1;             // 15-sec bar met hoogste high in deze TF bar
-    int LowBar_15s = -1;              // 15-sec bar met laagste low in deze TF bar
+    int StartBar_15s = -1;
+    int EndBar_15s = -1;
+    int HighBar_15s = -1;
+    int LowBar_15s = -1;
     bool IsComplete = false;
     
     // Vorige bar (voor prev_high/prev_low)
@@ -66,13 +69,16 @@ struct s_HigherTFBar {
     float PrevLow = 0.0f;
     float PrevClose = 0.0f;
     
+    // NIEUW: Track de START 15s bar van de anchor bar (voor confirm level tekening)
+    int AnchorStartBar_15s = -1;
+    
     void Reset() {
         StartTime = 0;
         Open = High = Low = Close = 0.0f;
         StartBar_15s = EndBar_15s = -1;
         HighBar_15s = LowBar_15s = -1;
+        AnchorStartBar_15s = -1;
         IsComplete = false;
-        // PrevHigh/PrevLow blijven behouden!
     }
     
     void SaveAsPrevious() {
@@ -86,9 +92,8 @@ struct s_HigherTFBar {
 // HELPER FUNCTIONS
 // ============================================================================
 
-// Check of een 15-sec bar een nieuwe TF bar moet starten (bijv. nieuwe minuut voor 1min)
 bool ShouldStartNewBar(SCDateTime barTime, int periodMinutes, SCDateTime lastStartTime) {
-    if (lastStartTime == 0) return true;  // Eerste bar
+    if (lastStartTime == 0) return true;
     
     int barMinute = barTime.GetMinute();
     int barHour = barTime.GetHour();
@@ -96,15 +101,12 @@ bool ShouldStartNewBar(SCDateTime barTime, int periodMinutes, SCDateTime lastSta
     int lastHour = lastStartTime.GetHour();
     
     if (periodMinutes == 1) {
-        // Nieuwe minuut?
         return (barMinute != lastMinute || barHour != lastHour);
     } else if (periodMinutes == 5) {
-        // Nieuwe 5-min interval? (00, 05, 10, 15, ...)
         int barInterval = (barMinute / 5) * 5;
         int lastInterval = (lastMinute / 5) * 5;
         return (barInterval != lastInterval || barHour != lastHour);
     } else if (periodMinutes == 15) {
-        // Nieuwe 15-min interval? (00, 15, 30, 45)
         int barInterval = (barMinute / 15) * 15;
         int lastInterval = (lastMinute / 15) * 15;
         return (barInterval != lastInterval || barHour != lastHour);
@@ -112,7 +114,6 @@ bool ShouldStartNewBar(SCDateTime barTime, int periodMinutes, SCDateTime lastSta
     return false;
 }
 
-// Vind de exacte 15-sec bar met hoogste high in een range
 int FindExact15sBarWithHighestHigh(SCStudyInterfaceRef& sc, int startBar_15s, int endBar_15s) {
     if (startBar_15s < 0 || endBar_15s < 0 || startBar_15s > endBar_15s) return -1;
     
@@ -128,7 +129,6 @@ int FindExact15sBarWithHighestHigh(SCStudyInterfaceRef& sc, int startBar_15s, in
     return maxBar;
 }
 
-// Vind de exacte 15-sec bar met laagste low in een range
 int FindExact15sBarWithLowestLow(SCStudyInterfaceRef& sc, int startBar_15s, int endBar_15s) {
     if (startBar_15s < 0 || endBar_15s < 0 || startBar_15s > endBar_15s) return -1;
     
@@ -144,7 +144,6 @@ int FindExact15sBarWithLowestLow(SCStudyInterfaceRef& sc, int startBar_15s, int 
     return minBar;
 }
 
-// Teken zigzag lijn van vorige plot naar huidige plot
 void DrawZigzagLine(
     SCStudyInterfaceRef& sc,
     s_TimeframeScanner* scanner,
@@ -154,7 +153,6 @@ void DrawZigzagLine(
     int color,
     int width
 ) {
-    // Als er een vorige plot is, teken lijn
     if (scanner->LastPlot_15s >= 0 && scanner->LastPlot_Price > 0) {
         int lineNumber = baseLineNumber + scanner->ZigzagLineCounter;
         
@@ -176,12 +174,13 @@ void DrawZigzagLine(
         scanner->ZigzagLineCounter++;
     }
     
-    // Update laatste plot
     scanner->LastPlot_15s = currentBar_15s;
     scanner->LastPlot_Price = currentPrice;
 }
 
-// Scan een higher timeframe bar voor VH/VL (OP TF NIVEAU!)
+// ============================================================================
+// SCAN HIGHER TF BAR - FIXED VERSION
+// ============================================================================
 void ScanHigherTFBar(
     SCStudyInterfaceRef& sc,
     s_TimeframeScanner* scanner,
@@ -198,37 +197,41 @@ void ScanHigherTFBar(
 ) {
     if (!tfBar->IsComplete) return;
     
-    // TF BAR data (1-min, 5-min, of 15-min candle!)
+    // CORRECTIE: Gebruik TFBarCounter voor consistente tracking
+    int barIndex = scanner->TFBarCounter;
+    scanner->TFBarCounter++;  // Increment voor volgende bar
+    
+    // TF BAR data
     float high = tfBar->High;
     float low = tfBar->Low;
     float open = tfBar->Open;
     float close = tfBar->Close;
-    int barIndex = scanner->LastProcessedBar + 1;  // TF bar index
     
-    // VORIGE TF BAR data (voor vergelijking)
+    // VORIGE TF BAR data
     float prev_high = tfBar->PrevHigh;
     float prev_low = tfBar->PrevLow;
     
-    // Bij eerste bar: gebruik huidige bar
+    // Bij eerste bar: gebruik huidige bar als referentie
     if (prev_high == 0.0f && prev_low == 0.0f) {
         prev_high = high;
         prev_low = low;
     }
     
-    // Check confirmations OP TF NIVEAU (TF bar close vs TF ConfirmLevel!)
+    // ====================================================================
+    // CHECK CONFIRMATIONS
+    // ====================================================================
     bool vh_confirmed = (scanner->VH_Active && 
-                        close < scanner->VH_ConfirmLevel &&  // TF bar close < TF ConfirmLevel
+                        close < scanner->VH_ConfirmLevel &&
                         scanner->WhatToPlotNext == s_TimeframeScanner::PLOT_VH &&
                         scanner->LastPlottedType != s_TimeframeScanner::LAST_VH);
     
     bool vl_confirmed = (scanner->VL_Active && 
-                        close > scanner->VL_ConfirmLevel &&  // TF bar close > TF ConfirmLevel
+                        close > scanner->VL_ConfirmLevel &&
                         scanner->WhatToPlotNext == s_TimeframeScanner::PLOT_VL &&
                         scanner->LastPlottedType != s_TimeframeScanner::LAST_VL);
     
     // Handle VH confirmation
     if (vh_confirmed) {
-        // Scan de HELE 15-sec range vanaf start van search tot nu
         int startScan = scanner->VH_StartBar_15s;
         int endScan = tfBar->EndBar_15s;
         
@@ -238,7 +241,6 @@ void ScanHigherTFBar(
             float plotPrice = sc.High[exact15sBar] + (symbolOffset * sc.TickSize);
             sg_VH[exact15sBar] = plotPrice;
             
-            // Teken zigzag lijn (als enabled)
             if (zigzagEnabled) {
                 DrawZigzagLine(sc, scanner, exact15sBar, plotPrice, baseLineNumber,
                               zigzagColor, zigzagWidth);
@@ -251,31 +253,19 @@ void ScanHigherTFBar(
             scanner->VH_Active = false;
             scanner->VH_StartBar_15s = -1;
             
-            if (detailedLog) {
-                SCString msg;
-                msg.Format("[%s] VH PLOTTED at 15s bar %d (scanned range %d-%d, Peak=%.2f)",
-                    tfName, exact15sBar, startScan, endScan, sc.High[exact15sBar]);
-                sc.AddMessageToLog(msg, 0);
-                msg.Format("[%s]     Traffic light switched: Now waiting for VL", tfName);
-                sc.AddMessageToLog(msg, 0);
-            }
+            SCString msg;
+            msg.Format("[%s] VH PLOTTED at 15s bar %d (TF bar %d, scanned range %d-%d, Peak=%.2f)",
+                tfName, exact15sBar, barIndex, startScan, endScan, sc.High[exact15sBar]);
+            sc.AddMessageToLog(msg, 0);
             
-            // Check of VL search stale is (close > ConfirmLevel terwijl geblokkeerd)
-            if (scanner->VL_Active) {
-                bool wasAlreadyBroken = false;
-                // We scannen niet de hele geschiedenis, alleen checken of current bar het al breekt
-                if (close > scanner->VL_ConfirmLevel) {
-                    wasAlreadyBroken = true;
-                }
-                
-                if (wasAlreadyBroken) {
-                    scanner->VL_Active = false;
-                    scanner->VL_StartBar_15s = -1;
-                    if (detailedLog) {
-                        SCString msg;
-                        msg.Format("[%s]     VL search was already broken (close went > confirm while blocked), RESET", tfName);
-                        sc.AddMessageToLog(msg, 0);
-                    }
+            // Check stale VL search
+            if (scanner->VL_Active && close > scanner->VL_ConfirmLevel) {
+                scanner->VL_Active = false;
+                scanner->VL_StartBar_15s = -1;
+                if (detailedLog) {
+                    SCString msg2;
+                    msg2.Format("[%s]     VL search was already broken, RESET", tfName);
+                    sc.AddMessageToLog(msg2, 0);
                 }
             }
         }
@@ -283,7 +273,6 @@ void ScanHigherTFBar(
     
     // Handle VL confirmation
     if (vl_confirmed) {
-        // Scan de HELE 15-sec range vanaf start van search tot nu
         int startScan = scanner->VL_StartBar_15s;
         int endScan = tfBar->EndBar_15s;
         
@@ -293,7 +282,6 @@ void ScanHigherTFBar(
             float plotPrice = sc.Low[exact15sBar] - (symbolOffset * sc.TickSize);
             sg_VL[exact15sBar] = plotPrice;
             
-            // Teken zigzag lijn (als enabled)
             if (zigzagEnabled) {
                 DrawZigzagLine(sc, scanner, exact15sBar, plotPrice, baseLineNumber,
                               zigzagColor, zigzagWidth);
@@ -306,63 +294,52 @@ void ScanHigherTFBar(
             scanner->VL_Active = false;
             scanner->VL_StartBar_15s = -1;
             
-            if (detailedLog) {
-                SCString msg;
-                msg.Format("[%s] VL PLOTTED at 15s bar %d (scanned range %d-%d, Trough=%.2f)",
-                    tfName, exact15sBar, startScan, endScan, sc.Low[exact15sBar]);
-                sc.AddMessageToLog(msg, 0);
-                msg.Format("[%s]     Traffic light switched: Now waiting for VH", tfName);
-                sc.AddMessageToLog(msg, 0);
-            }
+            SCString msg;
+            msg.Format("[%s] VL PLOTTED at 15s bar %d (TF bar %d, scanned range %d-%d, Trough=%.2f)",
+                tfName, exact15sBar, barIndex, startScan, endScan, sc.Low[exact15sBar]);
+            sc.AddMessageToLog(msg, 0);
             
-            // Check of VH search stale is (close < ConfirmLevel terwijl geblokkeerd)
-            if (scanner->VH_Active) {
-                bool wasAlreadyBroken = false;
-                // We scannen niet de hele geschiedenis, alleen checken of current bar het al breekt
-                if (close < scanner->VH_ConfirmLevel) {
-                    wasAlreadyBroken = true;
-                }
-                
-                if (wasAlreadyBroken) {
-                    scanner->VH_Active = false;
-                    scanner->VH_StartBar_15s = -1;
-                    if (detailedLog) {
-                        SCString msg;
-                        msg.Format("[%s]     VH search was already broken (close went < confirm while blocked), RESET", tfName);
-                        sc.AddMessageToLog(msg, 0);
-                    }
+            // Check stale VH search
+            if (scanner->VH_Active && close < scanner->VH_ConfirmLevel) {
+                scanner->VH_Active = false;
+                scanner->VH_StartBar_15s = -1;
+                if (detailedLog) {
+                    SCString msg2;
+                    msg2.Format("[%s]     VH search was already broken, RESET", tfName);
+                    sc.AddMessageToLog(msg2, 0);
                 }
             }
         }
     }
     
     // ====================================================================
-    // UPDATE SEARCHES (OP TF NIVEAU!)
+    // UPDATE SEARCHES - FIXED VERSION
     // ====================================================================
     
     // VH Search
     if (!scanner->VH_Active) {
-        // Start nieuwe VH search: TF close > TF prev_high
         if (close > prev_high) {
             scanner->VH_Active = true;
-            scanner->VH_PeakHigh = high;              // TF bar high
-            scanner->VH_PeakBar = barIndex;           // TF bar index
-            scanner->VH_ConfirmLevel = low;           // TF bar low
-            scanner->VH_ConfirmLevelBar = barIndex;   // TF bar index
-            scanner->VH_ConfirmLevelBar_15s = tfBar->LowBar_15s;  // 15s bar waar LOW is!
-            // 15-sec range start: vanaf laatste VL plot of vanaf deze TF bar start
+            scanner->VH_PeakHigh = high;
+            scanner->VH_PeakBar = barIndex;
+            scanner->VH_ConfirmLevel = low;  // FIXED: LOW van anchor bar (niet HIGH!)
+            scanner->VH_ConfirmLevelBar = barIndex;
+            
+            // CORRECT: Gebruik de 15s bar waar de LOW zich bevindt
+            scanner->VH_ConfirmLevelBar_15s = tfBar->LowBar_15s;
+            
+            // Start 15s range tracking
             scanner->VH_StartBar_15s = (scanner->LastVL_PlotBar_15s >= 0) ? 
                                        scanner->LastVL_PlotBar_15s : tfBar->StartBar_15s;
             
             SCString msg;
-            msg.Format("[%s] *** VH SEARCH STARTED *** TFBar %d (15s:%d-%d), TFClose(%.2f)>PrevTFHigh(%.2f), Peak=%.2f, ConfirmLvl=%.2f",
-                tfName, barIndex, tfBar->StartBar_15s, tfBar->EndBar_15s, close, prev_high, high, low);
+            msg.Format("[%s] *** VH SEARCH STARTED *** TFBar %d (15s:%d-%d), Close(%.2f)>PrevHigh(%.2f), Peak=%.2f, ConfirmLvl=%.2f (LOW@15s:%d)",
+                tfName, barIndex, tfBar->StartBar_15s, tfBar->EndBar_15s, close, prev_high, high, low, tfBar->LowBar_15s);
             sc.AddMessageToLog(msg, 0);
         }
     } else {
-        // Update bestaande VH search
+        // Update existing VH search
         if (high > scanner->VH_PeakHigh) {
-            // Hogere TF bar high -> update peak
             scanner->VH_PeakHigh = high;
             scanner->VH_PeakBar = barIndex;
             
@@ -374,14 +351,17 @@ void ScanHigherTFBar(
         }
         
         if (close > prev_high) {
-            // Nieuwe anchor: TF close > TF prev_high -> update ConfirmLevel
-            scanner->VH_ConfirmLevel = low;           // TF bar low
+            // Nieuwe anchor bar
+            scanner->VH_ConfirmLevel = low;  // FIXED: LOW van anchor bar (niet HIGH!)
             scanner->VH_ConfirmLevelBar = barIndex;
-            scanner->VH_ConfirmLevelBar_15s = tfBar->LowBar_15s;  // 15s bar waar de LOW is!
+            
+            // CORRECT: Gebruik de 15s bar waar de LOW zich bevindt
+            scanner->VH_ConfirmLevelBar_15s = tfBar->LowBar_15s;
             
             if (detailedLog) {
                 SCString msg;
-                msg.Format("[%s]   VH ANCHOR UPDATED: TFBar %d, NewConfirmLvl=%.2f", tfName, barIndex, low);
+                msg.Format("[%s]   VH ANCHOR UPDATED: TFBar %d, NewConfirmLvl=%.2f (LOW@15s:%d)", 
+                    tfName, barIndex, low, tfBar->LowBar_15s);
                 sc.AddMessageToLog(msg, 0);
             }
         }
@@ -389,27 +369,28 @@ void ScanHigherTFBar(
     
     // VL Search
     if (!scanner->VL_Active) {
-        // Start nieuwe VL search: TF close < TF prev_low
         if (close < prev_low) {
             scanner->VL_Active = true;
-            scanner->VL_TroughLow = low;              // TF bar low
-            scanner->VL_TroughBar = barIndex;         // TF bar index
-            scanner->VL_ConfirmLevel = high;          // TF bar high
-            scanner->VL_ConfirmLevelBar = barIndex;   // TF bar index
-            scanner->VL_ConfirmLevelBar_15s = tfBar->HighBar_15s;  // 15s bar waar HIGH is!
-            // 15-sec range start: vanaf laatste VH plot of vanaf deze TF bar start
+            scanner->VL_TroughLow = low;
+            scanner->VL_TroughBar = barIndex;
+            scanner->VL_ConfirmLevel = high;  // FIXED: HIGH van anchor bar (niet LOW!)
+            scanner->VL_ConfirmLevelBar = barIndex;
+            
+            // CORRECT: Gebruik de 15s bar waar de HIGH zich bevindt
+            scanner->VL_ConfirmLevelBar_15s = tfBar->HighBar_15s;
+            
+            // Start 15s range tracking
             scanner->VL_StartBar_15s = (scanner->LastVH_PlotBar_15s >= 0) ? 
                                        scanner->LastVH_PlotBar_15s : tfBar->StartBar_15s;
             
             SCString msg;
-            msg.Format("[%s] *** VL SEARCH STARTED *** TFBar %d (15s:%d-%d), TFClose(%.2f)<PrevTFLow(%.2f), Trough=%.2f, ConfirmLvl=%.2f",
-                tfName, barIndex, tfBar->StartBar_15s, tfBar->EndBar_15s, close, prev_low, low, high);
+            msg.Format("[%s] *** VL SEARCH STARTED *** TFBar %d (15s:%d-%d), Close(%.2f)<PrevLow(%.2f), Trough=%.2f, ConfirmLvl=%.2f (HIGH@15s:%d)",
+                tfName, barIndex, tfBar->StartBar_15s, tfBar->EndBar_15s, close, prev_low, low, high, tfBar->HighBar_15s);
             sc.AddMessageToLog(msg, 0);
         }
     } else {
-        // Update bestaande VL search
+        // Update existing VL search
         if (low < scanner->VL_TroughLow) {
-            // Lagere TF bar low -> update trough
             scanner->VL_TroughLow = low;
             scanner->VL_TroughBar = barIndex;
             
@@ -421,14 +402,17 @@ void ScanHigherTFBar(
         }
         
         if (close < prev_low) {
-            // Nieuwe anchor: TF close < TF prev_low -> update ConfirmLevel
-            scanner->VL_ConfirmLevel = high;          // TF bar high
+            // Nieuwe anchor bar
+            scanner->VL_ConfirmLevel = high;  // FIXED: HIGH van anchor bar (niet LOW!)
             scanner->VL_ConfirmLevelBar = barIndex;
-            scanner->VL_ConfirmLevelBar_15s = tfBar->HighBar_15s;  // 15s bar waar de HIGH is!
+            
+            // CORRECT: Gebruik de 15s bar waar de HIGH zich bevindt
+            scanner->VL_ConfirmLevelBar_15s = tfBar->HighBar_15s;
             
             if (detailedLog) {
                 SCString msg;
-                msg.Format("[%s]   VL ANCHOR UPDATED: TFBar %d, NewConfirmLvl=%.2f", tfName, barIndex, high);
+                msg.Format("[%s]   VL ANCHOR UPDATED: TFBar %d, NewConfirmLvl=%.2f (HIGH@15s:%d)", 
+                    tfName, barIndex, high, tfBar->HighBar_15s);
                 sc.AddMessageToLog(msg, 0);
             }
         }
@@ -442,10 +426,7 @@ void ScanHigherTFBar(
 // ============================================================================
 SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
 {
-    // ========================================================================
     // INPUTS
-    // ========================================================================
-    // 15-sec
     SCInputRef i_15s_Enabled = sc.Input[0];
     SCInputRef i_15s_SymbolColor = sc.Input[1];
     SCInputRef i_15s_SymbolSize = sc.Input[2];
@@ -455,7 +436,6 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
     SCInputRef i_15s_ZigzagColor = sc.Input[6];
     SCInputRef i_15s_ZigzagWidth = sc.Input[7];
     
-    // 1-min
     SCInputRef i_1m_Enabled = sc.Input[10];
     SCInputRef i_1m_SymbolColor = sc.Input[11];
     SCInputRef i_1m_SymbolSize = sc.Input[12];
@@ -465,7 +445,6 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
     SCInputRef i_1m_ZigzagColor = sc.Input[16];
     SCInputRef i_1m_ZigzagWidth = sc.Input[17];
     
-    // 5-min
     SCInputRef i_5m_Enabled = sc.Input[20];
     SCInputRef i_5m_SymbolColor = sc.Input[21];
     SCInputRef i_5m_SymbolSize = sc.Input[22];
@@ -475,7 +454,6 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
     SCInputRef i_5m_ZigzagColor = sc.Input[26];
     SCInputRef i_5m_ZigzagWidth = sc.Input[27];
     
-    // 15-min
     SCInputRef i_15m_Enabled = sc.Input[30];
     SCInputRef i_15m_SymbolColor = sc.Input[31];
     SCInputRef i_15m_SymbolSize = sc.Input[32];
@@ -485,33 +463,25 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
     SCInputRef i_15m_ZigzagColor = sc.Input[36];
     SCInputRef i_15m_ZigzagWidth = sc.Input[37];
     
-    // General
     SCInputRef i_LineWidth = sc.Input[50];
     SCInputRef i_DetailedLog = sc.Input[51];
     SCInputRef i_RecalcTrigger = sc.Input[52];
     SCInputRef i_RecalcMinutes = sc.Input[53];
 
-    // ========================================================================
     // SUBGRAPHS
-    // ========================================================================
     SCSubgraphRef sg_15s_VH = sc.Subgraph[0];
     SCSubgraphRef sg_15s_VL = sc.Subgraph[1];
-    
     SCSubgraphRef sg_1m_VH = sc.Subgraph[2];
     SCSubgraphRef sg_1m_VL = sc.Subgraph[3];
-    
     SCSubgraphRef sg_5m_VH = sc.Subgraph[4];
     SCSubgraphRef sg_5m_VL = sc.Subgraph[5];
-    
     SCSubgraphRef sg_15m_VH = sc.Subgraph[6];
     SCSubgraphRef sg_15m_VL = sc.Subgraph[7];
 
-    // ========================================================================
     // DEFAULTS
-    // ========================================================================
     if (sc.SetDefaults)
     {
-        sc.GraphName = "VH/VL Multi-Timeframe Scanner";
+        sc.GraphName = "VH/VL Multi-Timeframe Scanner (FIXED)";
         sc.AutoLoop = 1;
         sc.GraphRegion = 0;
         sc.UpdateAlways = 1;
@@ -526,43 +496,67 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         i_15s_SymbolOffset.Name = "15sec: Symbol Offset (ticks)";
         i_15s_SymbolOffset.SetInt(3);
         i_15s_DrawStyle.Name = "15sec: Draw Style (0=Arrow, 1=Point, 2=Star, 3=Hollow Circle)";
-        i_15s_DrawStyle.SetInt(1);  // POINT default
+        i_15s_DrawStyle.SetInt(1);
+        i_15s_ZigzagEnabled.Name = "15sec: Zigzag Enabled";
+        i_15s_ZigzagEnabled.SetYesNo(false);
+        i_15s_ZigzagColor.Name = "15sec: Zigzag Color";
+        i_15s_ZigzagColor.SetColor(RGB(0, 0, 0));
+        i_15s_ZigzagWidth.Name = "15sec: Zigzag Width";
+        i_15s_ZigzagWidth.SetInt(1);
         
         // 1-min Inputs
         i_1m_Enabled.Name = "1min: Enabled";
         i_1m_Enabled.SetYesNo(true);
         i_1m_SymbolColor.Name = "1min: Symbol Color";
-        i_1m_SymbolColor.SetColor(RGB(255, 255, 0));  // Yellow
+        i_1m_SymbolColor.SetColor(RGB(255, 255, 0));
         i_1m_SymbolSize.Name = "1min: Symbol Size";
         i_1m_SymbolSize.SetInt(6);
         i_1m_SymbolOffset.Name = "1min: Symbol Offset (ticks)";
         i_1m_SymbolOffset.SetInt(5);
         i_1m_DrawStyle.Name = "1min: Draw Style (0=Arrow, 1=Point, 2=Star, 3=Hollow Circle)";
-        i_1m_DrawStyle.SetInt(1);  // POINT default
+        i_1m_DrawStyle.SetInt(1);
+        i_1m_ZigzagEnabled.Name = "1min: Zigzag Enabled";
+        i_1m_ZigzagEnabled.SetYesNo(false);
+        i_1m_ZigzagColor.Name = "1min: Zigzag Color";
+        i_1m_ZigzagColor.SetColor(RGB(0, 255, 0));
+        i_1m_ZigzagWidth.Name = "1min: Zigzag Width";
+        i_1m_ZigzagWidth.SetInt(2);
         
         // 5-min Inputs
         i_5m_Enabled.Name = "5min: Enabled";
         i_5m_Enabled.SetYesNo(true);
         i_5m_SymbolColor.Name = "5min: Symbol Color";
-        i_5m_SymbolColor.SetColor(RGB(0, 255, 255));  // Cyan
+        i_5m_SymbolColor.SetColor(RGB(0, 255, 255));
         i_5m_SymbolSize.Name = "5min: Symbol Size";
         i_5m_SymbolSize.SetInt(8);
         i_5m_SymbolOffset.Name = "5min: Symbol Offset (ticks)";
         i_5m_SymbolOffset.SetInt(7);
         i_5m_DrawStyle.Name = "5min: Draw Style (0=Arrow, 1=Point, 2=Star, 3=Hollow Circle)";
-        i_5m_DrawStyle.SetInt(2);  // STAR default
+        i_5m_DrawStyle.SetInt(2);
+        i_5m_ZigzagEnabled.Name = "5min: Zigzag Enabled";
+        i_5m_ZigzagEnabled.SetYesNo(false);
+        i_5m_ZigzagColor.Name = "5min: Zigzag Color";
+        i_5m_ZigzagColor.SetColor(RGB(255, 0, 0));
+        i_5m_ZigzagWidth.Name = "5min: Zigzag Width";
+        i_5m_ZigzagWidth.SetInt(2);
         
         // 15-min Inputs
         i_15m_Enabled.Name = "15min: Enabled";
         i_15m_Enabled.SetYesNo(true);
         i_15m_SymbolColor.Name = "15min: Symbol Color";
-        i_15m_SymbolColor.SetColor(RGB(255, 0, 255));  // Magenta
+        i_15m_SymbolColor.SetColor(RGB(255, 0, 255));
         i_15m_SymbolSize.Name = "15min: Symbol Size";
         i_15m_SymbolSize.SetInt(10);
         i_15m_SymbolOffset.Name = "15min: Symbol Offset (ticks)";
         i_15m_SymbolOffset.SetInt(10);
         i_15m_DrawStyle.Name = "15min: Draw Style (0=Arrow, 1=Point, 2=Star, 3=Hollow Circle)";
-        i_15m_DrawStyle.SetInt(0);  // ARROW default
+        i_15m_DrawStyle.SetInt(0);
+        i_15m_ZigzagEnabled.Name = "15min: Zigzag Enabled";
+        i_15m_ZigzagEnabled.SetYesNo(false);
+        i_15m_ZigzagColor.Name = "15min: Zigzag Color";
+        i_15m_ZigzagColor.SetColor(RGB(255, 0, 255));
+        i_15m_ZigzagWidth.Name = "15min: Zigzag Width";
+        i_15m_ZigzagWidth.SetInt(3);
         
         // General Inputs
         i_LineWidth.Name = "Confirm Line Width";
@@ -573,78 +567,50 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         i_RecalcTrigger.SetYesNo(false);
         i_RecalcMinutes.Name = "Recalculate: How Many Minutes Back";
         i_RecalcMinutes.SetInt(60);
-        
-        // Zigzag Inputs
-        i_15s_ZigzagEnabled.Name = "15sec: Zigzag Enabled";
-        i_15s_ZigzagEnabled.SetYesNo(false);
-        i_15s_ZigzagColor.Name = "15sec: Zigzag Color";
-        i_15s_ZigzagColor.SetColor(RGB(0, 0, 0));  // Black
-        i_15s_ZigzagWidth.Name = "15sec: Zigzag Width";
-        i_15s_ZigzagWidth.SetInt(1);
-        
-        i_1m_ZigzagEnabled.Name = "1min: Zigzag Enabled";
-        i_1m_ZigzagEnabled.SetYesNo(true);  // TEST: Default ON
-        i_1m_ZigzagColor.Name = "1min: Zigzag Color";
-        i_1m_ZigzagColor.SetColor(RGB(0, 255, 0));  // Green
-        i_1m_ZigzagWidth.Name = "1min: Zigzag Width";
-        i_1m_ZigzagWidth.SetInt(2);
-        
-        i_5m_ZigzagEnabled.Name = "5min: Zigzag Enabled";
-        i_5m_ZigzagEnabled.SetYesNo(false);  // Default OFF
-        i_5m_ZigzagColor.Name = "5min: Zigzag Color";
-        i_5m_ZigzagColor.SetColor(RGB(255, 0, 0));  // Red
-        i_5m_ZigzagWidth.Name = "5min: Zigzag Width";
-        i_5m_ZigzagWidth.SetInt(2);
-        
-        i_15m_ZigzagEnabled.Name = "15min: Zigzag Enabled";
-        i_15m_ZigzagEnabled.SetYesNo(false);  // Default OFF
-        i_15m_ZigzagColor.Name = "15min: Zigzag Color";
-        i_15m_ZigzagColor.SetColor(RGB(255, 0, 255));  // Purple
-        i_15m_ZigzagWidth.Name = "15min: Zigzag Width";
-        i_15m_ZigzagWidth.SetInt(3);
 
-        // 15-sec Subgraphs
+        // Subgraphs
         sg_15s_VH.Name = "15s VH";
         sg_15s_VH.DrawStyle = DRAWSTYLE_POINT;
         sg_15s_VH.PrimaryColor = RGB(255, 255, 255);
         sg_15s_VH.LineWidth = 4;
         sg_15s_VH.DrawZeros = false;
+        
         sg_15s_VL.Name = "15s VL";
         sg_15s_VL.DrawStyle = DRAWSTYLE_POINT;
         sg_15s_VL.PrimaryColor = RGB(255, 255, 255);
         sg_15s_VL.LineWidth = 4;
         sg_15s_VL.DrawZeros = false;
         
-        // 1-min Subgraphs
         sg_1m_VH.Name = "1m VH";
         sg_1m_VH.DrawStyle = DRAWSTYLE_POINT;
         sg_1m_VH.PrimaryColor = RGB(255, 255, 0);
         sg_1m_VH.LineWidth = 6;
         sg_1m_VH.DrawZeros = false;
+        
         sg_1m_VL.Name = "1m VL";
         sg_1m_VL.DrawStyle = DRAWSTYLE_POINT;
         sg_1m_VL.PrimaryColor = RGB(255, 255, 0);
         sg_1m_VL.LineWidth = 6;
         sg_1m_VL.DrawZeros = false;
         
-        // 5-min Subgraphs
         sg_5m_VH.Name = "5m VH";
         sg_5m_VH.DrawStyle = DRAWSTYLE_STAR;
         sg_5m_VH.PrimaryColor = RGB(0, 255, 255);
         sg_5m_VH.LineWidth = 8;
         sg_5m_VH.DrawZeros = false;
+        
         sg_5m_VL.Name = "5m VL";
         sg_5m_VL.DrawStyle = DRAWSTYLE_STAR;
         sg_5m_VL.PrimaryColor = RGB(0, 255, 255);
         sg_5m_VL.LineWidth = 8;
         sg_5m_VL.DrawZeros = false;
         
-        // 15-min Subgraphs
         sg_15m_VH.Name = "15m VH";
         sg_15m_VH.DrawStyle = DRAWSTYLE_ARROWUP;
         sg_15m_VH.PrimaryColor = RGB(255, 0, 255);
         sg_15m_VH.LineWidth = 10;
         sg_15m_VH.DrawZeros = false;
+        
         sg_15m_VL.Name = "15m VL";
         sg_15m_VL.DrawStyle = DRAWSTYLE_ARROWDOWN;
         sg_15m_VL.PrimaryColor = RGB(255, 0, 255);
@@ -654,14 +620,11 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         return;
     }
 
-    // ========================================================================
     // PERSISTENT DATA
-    // ========================================================================
     s_TimeframeScanner* p_15s = (s_TimeframeScanner*)sc.GetPersistentPointer(1);
     s_TimeframeScanner* p_1m = (s_TimeframeScanner*)sc.GetPersistentPointer(2);
     s_TimeframeScanner* p_5m = (s_TimeframeScanner*)sc.GetPersistentPointer(3);
     s_TimeframeScanner* p_15m = (s_TimeframeScanner*)sc.GetPersistentPointer(4);
-    
     s_HigherTFBar* p_1m_CurrentBar = (s_HigherTFBar*)sc.GetPersistentPointer(5);
     s_HigherTFBar* p_5m_CurrentBar = (s_HigherTFBar*)sc.GetPersistentPointer(6);
     s_HigherTFBar* p_15m_CurrentBar = (s_HigherTFBar*)sc.GetPersistentPointer(7);
@@ -727,18 +690,15 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         return;
     }
 
-    // ========================================================================
-    // MAIN PROCESSING
-    // ========================================================================
     int i = sc.Index;
-    if (i < 2) return;
     
     // ========================================================================
-    // MANUAL RECALC TRIGGER
+    // MANUAL RECALC TRIGGER - FIXED: Alleen op laatste bar checken!
     // ========================================================================
-    if (i_RecalcTrigger.GetYesNo()) {
+    if (i == sc.ArraySize - 1 && i_RecalcTrigger.GetYesNo()) {
         SCString debugMsg;
-        debugMsg.Format("RECALC TRIGGER DETECTED AS YES! Starting manual recalc...");
+        debugMsg.Format("=== RECALC TRIGGER ACTIVATED === Starting manual recalc for last %d minutes...", 
+                       i_RecalcMinutes.GetInt());
         sc.AddMessageToLog(debugMsg, 0);
         
         int minutesBack = i_RecalcMinutes.GetInt();
@@ -746,7 +706,10 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         int startBar = i - barsBack;
         if (startBar < 2) startBar = 2;
         
-        // Reset state
+        debugMsg.Format("  Clearing from bar %d to %d (%d bars)", startBar, i, i - startBar + 1);
+        sc.AddMessageToLog(debugMsg, 0);
+        
+        // Reset ALL state
         *p_15s = s_TimeframeScanner();
         *p_1m = s_TimeframeScanner();
         *p_5m = s_TimeframeScanner();
@@ -755,8 +718,8 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         *p_5m_CurrentBar = s_HigherTFBar();
         *p_15m_CurrentBar = s_HigherTFBar();
         
-        // Clear ALLE plots (simpeler - clear alles en laat SierraChart recalculate doen)
-        for (int j = 0; j < sc.ArraySize; j++) {
+        // Clear plots in range
+        for (int j = startBar; j <= i; j++) {
             sg_15s_VH[j] = 0;
             sg_15s_VL[j] = 0;
             sg_1m_VH[j] = 0;
@@ -767,12 +730,13 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
             sg_15m_VL[j] = 0;
         }
         
-        // Clear alle lijnen
+        // Clear confirm lines
         sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 200001);
         sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 200002);
         sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 200003);
         sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 200004);
         
+        // Clear zigzag lines (batch delete)
         for (int line = 0; line < 10000; line++) {
             sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 300000 + line);
             sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 310000 + line);
@@ -783,30 +747,30 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         // Reset trigger
         i_RecalcTrigger.SetYesNo(false);
         
-        // Force VOLLEDIGE recalculation door LastProcessedBar heel laag te zetten
-        p_15s->LastProcessedBar = -10000;
+        // Force full recalc door LastProcessedBar VOOR de cleared range te zetten
+        p_15s->LastProcessedBar = startBar - 5;
+        p_1m->LastProcessedBar = -1;
+        p_5m->LastProcessedBar = -1;
+        p_15m->LastProcessedBar = -1;
         
-        SCString msg;
-        msg.Format("MANUAL RECALC TRIGGERED: All plots cleared, full recalculation will happen automatically");
-        sc.AddMessageToLog(msg, 0);
+        debugMsg.Format("=== RECALC COMPLETE === Plots cleared, recalculation will start from bar %d", startBar);
+        sc.AddMessageToLog(debugMsg, 0);
         
-        return;  // Exit, bij volgende call wordt recalculation gedetecteerd en alles opnieuw opgebouwd
+        return;
     }
 
-    // Detect full recalculation: als we terug gaan in tijd, reset state
+    if (i < 2) return;
+
+    // Detect full recalculation
     if (i < p_15s->LastProcessedBar - 1) {
-        // Recalculation detected - reset ALLES compleet
         *p_15s = s_TimeframeScanner();
         *p_1m = s_TimeframeScanner();
         *p_5m = s_TimeframeScanner();
         *p_15m = s_TimeframeScanner();
-        
-        // Reset TF bars VOLLEDIG (inclusief PrevHigh/PrevLow naar 0)
         *p_1m_CurrentBar = s_HigherTFBar();
         *p_5m_CurrentBar = s_HigherTFBar();
         *p_15m_CurrentBar = s_HigherTFBar();
         
-        // CLEAR alle subgraphs (oude plots verwijderen!)
         for (int j = 0; j < sc.ArraySize; j++) {
             sg_15s_VH[j] = 0;
             sg_15s_VL[j] = 0;
@@ -818,14 +782,13 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
             sg_15m_VL[j] = 0;
         }
         
-        // Clear alle confirm lijnen
         sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 200001);
         sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 200002);
         sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 200003);
         sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 200004);
         
         SCString msg;
-        msg.Format("RECALCULATION DETECTED at bar %d (LastProcessed was %d) - FULL RESET ALL TIMEFRAMES + CLEARED PLOTS", i, p_15s->LastProcessedBar);
+        msg.Format("FULL RECALCULATION DETECTED at bar %d - COMPLETE RESET", i);
         sc.AddMessageToLog(msg, 0);
     }
 
@@ -833,352 +796,207 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
     // 15-SEC TIMEFRAME PROCESSING
     // ========================================================================
     if (i_15s_Enabled.GetYesNo()) {
-        // Simpele logica: verwerk bar i als die GROTER is dan LastProcessedBar
-        // Voor realtime: verwerk i-1 (gesloten bar), maar sla alleen op als nieuw
         bool isLastBar = (i == sc.ArraySize - 1);
         int barToProcess = isLastBar ? (i - 1) : i;
         
-        // Skip als we deze bar al verwerkt hebben
-        if (barToProcess <= p_15s->LastProcessedBar) {
-            // Al verwerkt - skip naar visualisatie
-        } else {
-        // ====================================================================
-        // VERWERK NIEUWE GESLOTEN BAR
-        // ====================================================================
-        p_15s->LastProcessedBar = barToProcess;  // Markeer deze bar als verwerkt!
-        
-        float high = sc.High[barToProcess];
-        float low = sc.Low[barToProcess];
-        float close = sc.Close[barToProcess];
-        float prev_high = sc.High[barToProcess - 1];
-        float prev_low = sc.Low[barToProcess - 1];
-        
-        if (i_DetailedLog.GetYesNo()) {
-            const char* lastPlotted = "NONE";
-            if (p_15s->LastPlottedType == s_TimeframeScanner::LAST_VH) lastPlotted = "VH";
-            else if (p_15s->LastPlottedType == s_TimeframeScanner::LAST_VL) lastPlotted = "VL";
+        if (barToProcess > p_15s->LastProcessedBar) {
+            p_15s->LastProcessedBar = barToProcess;
             
-            SCString msg;
-            msg.Format("[Bar %d] Processing - NextPlot=%s, LastPlotted=%s, H=%.2f L=%.2f C=%.2f",
-                barToProcess,
-                (p_15s->WhatToPlotNext == s_TimeframeScanner::PLOT_VH ? "VH" : "VL"),
-                lastPlotted,
-                high, low, close);
-            sc.AddMessageToLog(msg, 0);
-        }
+            float high = sc.High[barToProcess];
+            float low = sc.Low[barToProcess];
+            float close = sc.Close[barToProcess];
+            float open = sc.Open[barToProcess];
+            float prev_high = sc.High[barToProcess - 1];
+            float prev_low = sc.Low[barToProcess - 1];
+            
+            // Check confirmations
+            bool vh_confirmed = (p_15s->VH_Active && 
+                                close < p_15s->VH_ConfirmLevel &&
+                                p_15s->WhatToPlotNext == s_TimeframeScanner::PLOT_VH &&
+                                p_15s->LastPlottedType != s_TimeframeScanner::LAST_VH);
+            
+            bool vl_confirmed = (p_15s->VL_Active && 
+                                close > p_15s->VL_ConfirmLevel &&
+                                p_15s->WhatToPlotNext == s_TimeframeScanner::PLOT_VL &&
+                                p_15s->LastPlottedType != s_TimeframeScanner::LAST_VL);
 
-        // ====================================================================
-        // STAP 1: CHECK BEVESTIGINGEN (voor plots)
-        // ====================================================================
-        float open = sc.Open[barToProcess];
-        float bodySize = (close > open) ? (close - open) : (open - close);  // Absolute body size
-        float minBodySize = 2.0f * sc.TickSize;
-        
-        bool vh_confirmed = (p_15s->VH_Active && 
-                            close < p_15s->VH_ConfirmLevel &&  // Close moet ONDER niveau
-                            p_15s->WhatToPlotNext == s_TimeframeScanner::PLOT_VH &&
-                            p_15s->LastPlottedType != s_TimeframeScanner::LAST_VH);  // GEEN dubbele VH!
-        
-        bool vl_confirmed = (p_15s->VL_Active && 
-                            close > p_15s->VL_ConfirmLevel &&  // Close moet BOVEN niveau
-                            p_15s->WhatToPlotNext == s_TimeframeScanner::PLOT_VL &&
-                            p_15s->LastPlottedType != s_TimeframeScanner::LAST_VL);  // GEEN dubbele VL!
-
-        if (i_DetailedLog.GetYesNo()) {
-            SCString msg;
-            msg.Format("  Body: Open=%.2f Close=%.2f Size=%.2f (NO LONGER CHECKED)",
-                open, close, bodySize);
-            sc.AddMessageToLog(msg, 0);
-            
-            if (p_15s->VH_Active) {
-                msg.Format("  VH: Active, Peak=%.2f@%d, ConfirmLvl=%.2f, Close<Lvl=%d, CanPlot=%d => Confirmed=%d",
-                    p_15s->VH_PeakHigh, p_15s->VH_PeakBar, p_15s->VH_ConfirmLevel,
-                    (close < p_15s->VH_ConfirmLevel ? 1 : 0),
-                    (p_15s->WhatToPlotNext == s_TimeframeScanner::PLOT_VH ? 1 : 0),
-                    vh_confirmed);
-                sc.AddMessageToLog(msg, 0);
-            }
-            if (p_15s->VL_Active) {
-                msg.Format("  VL: Active, Trough=%.2f@%d, ConfirmLvl=%.2f, Close>Lvl=%d, CanPlot=%d => Confirmed=%d",
-                    p_15s->VL_TroughLow, p_15s->VL_TroughBar, p_15s->VL_ConfirmLevel,
-                    (close > p_15s->VL_ConfirmLevel ? 1 : 0),
-                    (p_15s->WhatToPlotNext == s_TimeframeScanner::PLOT_VL ? 1 : 0),
-                    vl_confirmed);
-                sc.AddMessageToLog(msg, 0);
-            }
-        }
-
-        // Verwerk bevestigingen
-        if (vh_confirmed) {
-            float plotPrice = p_15s->VH_PeakHigh + (i_15s_SymbolOffset.GetInt() * sc.TickSize);
-            sg_15s_VH[p_15s->VH_PeakBar] = plotPrice;
-            
-            // Teken zigzag lijn (als enabled)
-            if (i_15s_ZigzagEnabled.GetYesNo()) {
-                DrawZigzagLine(sc, p_15s, p_15s->VH_PeakBar, plotPrice, 300000,
-                              i_15s_ZigzagColor.GetColor(), i_15s_ZigzagWidth.GetInt());
-            }
-            
-            // Update laatste plot type
-            p_15s->LastPlottedType = s_TimeframeScanner::LAST_VH;
-            
-            if (i_DetailedLog.GetYesNo()) {
-                SCString msg;
-                msg.Format("*** VH PLOTTED at Bar %d (Peak=%.2f, ConfirmLvl=%.2f) ***",
-                    p_15s->VH_PeakBar, p_15s->VH_PeakHigh, p_15s->VH_ConfirmLevel);
-                sc.AddMessageToLog(msg, 0);
-            }
-            
-            // Switch traffic light - nu wachten op VL
-            p_15s->WhatToPlotNext = s_TimeframeScanner::PLOT_VL;
-            
-            if (i_DetailedLog.GetYesNo()) {
-                SCString msg;
-                msg.Format("    Traffic light switched: Now waiting for VL");
-                sc.AddMessageToLog(msg, 0);
-            }
-            
-            // Reset VH search (net geplot)
-            p_15s->VH_Active = false;
-            p_15s->VH_PeakHigh = 0.0f;
-            p_15s->VH_PeakBar = -1;
-            p_15s->VH_ConfirmLevel = 0.0f;
-            p_15s->VH_ConfirmLevelBar = -1;
-            
-            // Check: is VL search actief EN close is al boven het trough niveau?
-            // Dan werkt de VL search aan een oude trough, reset
-            if (p_15s->VL_Active && p_15s->VL_TroughBar >= 0) {
-                // Check of we sinds de trough bar al boven de confirm level zijn gegaan
-                bool vlBroken = false;
-                for (int checkBar = p_15s->VL_TroughBar + 1; checkBar <= barToProcess; checkBar++) {
-                    if (sc.Close[checkBar] > p_15s->VL_ConfirmLevel) {
-                        vlBroken = true;
-                        break;
-                    }
+            // Handle VH confirmation
+            if (vh_confirmed) {
+                float plotPrice = p_15s->VH_PeakHigh + (i_15s_SymbolOffset.GetInt() * sc.TickSize);
+                sg_15s_VH[p_15s->VH_PeakBar] = plotPrice;
+                
+                if (i_15s_ZigzagEnabled.GetYesNo()) {
+                    DrawZigzagLine(sc, p_15s, p_15s->VH_PeakBar, plotPrice, 300000,
+                                  i_15s_ZigzagColor.GetColor(), i_15s_ZigzagWidth.GetInt());
                 }
                 
-                if (vlBroken) {
+                p_15s->LastPlottedType = s_TimeframeScanner::LAST_VH;
+                p_15s->WhatToPlotNext = s_TimeframeScanner::PLOT_VL;
+                p_15s->VH_Active = false;
+                
+                // Check stale VL
+                if (p_15s->VL_Active) {
+                    bool vlBroken = false;
+                    for (int checkBar = p_15s->VL_TroughBar + 1; checkBar <= barToProcess; checkBar++) {
+                        if (sc.Close[checkBar] > p_15s->VL_ConfirmLevel) {
+                            vlBroken = true;
+                            break;
+                        }
+                    }
+                    if (vlBroken) {
+                        p_15s->VL_Active = false;
+                    }
+                }
+            }
+            
+            // Handle VL confirmation
+            if (vl_confirmed) {
+                float plotPrice = p_15s->VL_TroughLow - (i_15s_SymbolOffset.GetInt() * sc.TickSize);
+                sg_15s_VL[p_15s->VL_TroughBar] = plotPrice;
+                
+                if (i_15s_ZigzagEnabled.GetYesNo()) {
+                    DrawZigzagLine(sc, p_15s, p_15s->VL_TroughBar, plotPrice, 300000,
+                                  i_15s_ZigzagColor.GetColor(), i_15s_ZigzagWidth.GetInt());
+                }
+                
+                p_15s->LastPlottedType = s_TimeframeScanner::LAST_VL;
+                p_15s->WhatToPlotNext = s_TimeframeScanner::PLOT_VH;
+                p_15s->VL_Active = false;
+                
+                // Check stale VH
+                if (p_15s->VH_Active) {
+                    bool vhBroken = false;
+                    for (int checkBar = p_15s->VH_PeakBar + 1; checkBar <= barToProcess; checkBar++) {
+                        if (sc.Close[checkBar] < p_15s->VH_ConfirmLevel) {
+                            vhBroken = true;
+                            break;
+                        }
+                    }
+                    if (vhBroken) {
+                        p_15s->VH_Active = false;
+                    }
+                }
+            }
+
+            // Update VH search
+            if (!p_15s->VH_Active) {
+                if (close > prev_high) {
+                    p_15s->VH_Active = true;
+                    p_15s->VH_PeakHigh = high;
+                    p_15s->VH_PeakBar = barToProcess;
+                    p_15s->VH_ConfirmLevel = low;  // CORRECT: LOW van anchor bar
+                    p_15s->VH_ConfirmLevelBar = barToProcess;
+                    
                     if (i_DetailedLog.GetYesNo()) {
                         SCString msg;
-                        msg.Format("    VL search was already broken (close went > confirm while blocked), RESET");
+                        msg.Format("[15s] VH SEARCH STARTED at bar %d: Peak=%.2f, ConfirmLvl=%.2f (LOW), Close(%.2f)>PrevHigh(%.2f)",
+                            barToProcess, high, low, close, prev_high);
                         sc.AddMessageToLog(msg, 0);
                     }
-                    p_15s->VL_Active = false;
-                    p_15s->VL_TroughLow = 0.0f;
-                    p_15s->VL_TroughBar = -1;
-                    p_15s->VL_ConfirmLevel = 0.0f;
-                    p_15s->VL_ConfirmLevelBar = -1;
                 }
-            }
-        }
-        
-        if (vl_confirmed) {
-            float plotPrice = p_15s->VL_TroughLow - (i_15s_SymbolOffset.GetInt() * sc.TickSize);
-            sg_15s_VL[p_15s->VL_TroughBar] = plotPrice;
-            
-            // Teken zigzag lijn (als enabled)
-            if (i_15s_ZigzagEnabled.GetYesNo()) {
-                DrawZigzagLine(sc, p_15s, p_15s->VL_TroughBar, plotPrice, 300000,
-                              i_15s_ZigzagColor.GetColor(), i_15s_ZigzagWidth.GetInt());
-            }
-            
-            // Update laatste plot type
-            p_15s->LastPlottedType = s_TimeframeScanner::LAST_VL;
-            
-            if (i_DetailedLog.GetYesNo()) {
-                SCString msg;
-                msg.Format("*** VL PLOTTED at Bar %d (Trough=%.2f, ConfirmLvl=%.2f) ***",
-                    p_15s->VL_TroughBar, p_15s->VL_TroughLow, p_15s->VL_ConfirmLevel);
-                sc.AddMessageToLog(msg, 0);
-            }
-            
-            // Switch traffic light - nu wachten op VH
-            p_15s->WhatToPlotNext = s_TimeframeScanner::PLOT_VH;
-            
-            if (i_DetailedLog.GetYesNo()) {
-                SCString msg;
-                msg.Format("    Traffic light switched: Now waiting for VH");
-                sc.AddMessageToLog(msg, 0);
-            }
-            
-            // Reset VL search (net geplot)
-            p_15s->VL_Active = false;
-            p_15s->VL_TroughLow = 0.0f;
-            p_15s->VL_TroughBar = -1;
-            p_15s->VL_ConfirmLevel = 0.0f;
-            p_15s->VL_ConfirmLevelBar = -1;
-            
-            // Check: is VH search actief EN close is al onder het peak niveau?
-            // Dan werkt de VH search aan een oude peak, reset
-            if (p_15s->VH_Active && p_15s->VH_PeakBar >= 0) {
-                // Check of we sinds de peak bar al onder de confirm level zijn gegaan
-                bool vhBroken = false;
-                for (int checkBar = p_15s->VH_PeakBar + 1; checkBar <= barToProcess; checkBar++) {
-                    if (sc.Close[checkBar] < p_15s->VH_ConfirmLevel) {
-                        vhBroken = true;
-                        break;
-                    }
-                }
-                
-                if (vhBroken) {
+            } else {
+                if (high > p_15s->VH_PeakHigh) {
+                    p_15s->VH_PeakHigh = high;
+                    p_15s->VH_PeakBar = barToProcess;
+                    
                     if (i_DetailedLog.GetYesNo()) {
                         SCString msg;
-                        msg.Format("    VH search was already broken (close went < confirm while blocked), RESET");
+                        msg.Format("[15s] VH PEAK UPDATED at bar %d: NewPeak=%.2f", barToProcess, high);
                         sc.AddMessageToLog(msg, 0);
                     }
-                    p_15s->VH_Active = false;
-                    p_15s->VH_PeakHigh = 0.0f;
-                    p_15s->VH_PeakBar = -1;
-                    p_15s->VH_ConfirmLevel = 0.0f;
-                    p_15s->VH_ConfirmLevelBar = -1;
+                }
+                if (close > prev_high) {
+                    p_15s->VH_ConfirmLevel = low;  // CORRECT: LOW van anchor bar
+                    p_15s->VH_ConfirmLevelBar = barToProcess;
+                    
+                    if (i_DetailedLog.GetYesNo()) {
+                        SCString msg;
+                        msg.Format("[15s] VH ANCHOR UPDATED at bar %d: ConfirmLvl→%.2f (LOW), Close(%.2f)>PrevHigh(%.2f)",
+                            barToProcess, low, close, prev_high);
+                        sc.AddMessageToLog(msg, 0);
+                    }
+                }
+            }
+            
+            // Update VL search
+            if (!p_15s->VL_Active) {
+                if (close < prev_low) {
+                    p_15s->VL_Active = true;
+                    p_15s->VL_TroughLow = low;
+                    p_15s->VL_TroughBar = barToProcess;
+                    p_15s->VL_ConfirmLevel = high;  // CORRECT: HIGH van anchor bar
+                    p_15s->VL_ConfirmLevelBar = barToProcess;
+                    
+                    if (i_DetailedLog.GetYesNo()) {
+                        SCString msg;
+                        msg.Format("[15s] VL SEARCH STARTED at bar %d: Trough=%.2f, ConfirmLvl=%.2f (HIGH), Close(%.2f)<PrevLow(%.2f)",
+                            barToProcess, low, high, close, prev_low);
+                        sc.AddMessageToLog(msg, 0);
+                    }
+                }
+            } else {
+                if (low < p_15s->VL_TroughLow) {
+                    p_15s->VL_TroughLow = low;
+                    p_15s->VL_TroughBar = barToProcess;
+                    
+                    if (i_DetailedLog.GetYesNo()) {
+                        SCString msg;
+                        msg.Format("[15s] VL TROUGH UPDATED at bar %d: NewTrough=%.2f", barToProcess, low);
+                        sc.AddMessageToLog(msg, 0);
+                    }
+                }
+                if (close < prev_low) {
+                    p_15s->VL_ConfirmLevel = high;  // CORRECT: HIGH van anchor bar
+                    p_15s->VL_ConfirmLevelBar = barToProcess;
+                    
+                    if (i_DetailedLog.GetYesNo()) {
+                        SCString msg;
+                        msg.Format("[15s] VL ANCHOR UPDATED at bar %d: ConfirmLvl→%.2f (HIGH), Close(%.2f)<PrevLow(%.2f)",
+                            barToProcess, high, close, prev_low);
+                        sc.AddMessageToLog(msg, 0);
+                    }
                 }
             }
         }
-
-        // ====================================================================
-        // STAP 2: UPDATE PARALLELLE SEARCHES
-        // ====================================================================
-        
-        // VH Search (altijd actief)
-        if (!p_15s->VH_Active) {
-            // Start nieuwe VH search: close > prev_high
-            if (close > prev_high) {
-                p_15s->VH_Active = true;
-                p_15s->VH_PeakHigh = high;
-                p_15s->VH_PeakBar = barToProcess;
-                p_15s->VH_ConfirmLevel = low;
-                p_15s->VH_ConfirmLevelBar = barToProcess;
-                
-                if (i_DetailedLog.GetYesNo()) {
-                    SCString msg;
-                    msg.Format("  VH STARTED: Bar %d, Close(%.2f)>PrevHigh(%.2f), Peak=%.2f, ConfirmLvl=%.2f, Body=%.2f",
-                        barToProcess, close, prev_high, high, low, bodySize);
-                    sc.AddMessageToLog(msg, 0);
-                }
-            } else if (close > prev_high && i_DetailedLog.GetYesNo()) {
-                SCString msg;
-                msg.Format("  VH NOT STARTED: Bar %d, Close>PrevHigh but body too small (%.2f < %.2f)",
-                    barToProcess, bodySize, minBodySize);
-                sc.AddMessageToLog(msg, 0);
-            }
-        } else {
-            // Update bestaande VH search
-            bool peakUpdated = false;
-            bool anchorUpdated = false;
-            
-            // Check voor nieuwe PEAK (elke hogere high)
-            if (high > p_15s->VH_PeakHigh) {
-                p_15s->VH_PeakHigh = high;
-                p_15s->VH_PeakBar = barToProcess;
-                peakUpdated = true;
-            }
-            
-            // Check voor nieuwe ANCHOR (close > prev_high)
-            if (close > prev_high) {
-                p_15s->VH_ConfirmLevel = low;
-                p_15s->VH_ConfirmLevelBar = barToProcess;
-                anchorUpdated = true;
-            }
-            
-            if (i_DetailedLog.GetYesNo() && (peakUpdated || anchorUpdated)) {
-                SCString msg;
-                if (peakUpdated && anchorUpdated) {
-                    msg.Format("  VH UPDATED: Bar %d, NewPeak=%.2f, NewAnchor(ConfirmLvl=%.2f), Body=%.2f",
-                        barToProcess, high, low, bodySize);
-                } else if (peakUpdated) {
-                    msg.Format("  VH PEAK UPDATED: Bar %d, NewPeak=%.2f (anchor unchanged, ConfirmLvl=%.2f)",
-                        barToProcess, high, p_15s->VH_ConfirmLevel);
-                } else if (anchorUpdated) {
-                    msg.Format("  VH ANCHOR UPDATED: Bar %d, NewConfirmLvl=%.2f (peak unchanged=%.2f)",
-                        barToProcess, low, p_15s->VH_PeakHigh);
-                }
-                sc.AddMessageToLog(msg, 0);
-            }
-        }
-        
-        // VL Search (altijd actief)
-        if (!p_15s->VL_Active) {
-            // Start nieuwe VL search: close < prev_low
-            if (close < prev_low) {
-                p_15s->VL_Active = true;
-                p_15s->VL_TroughLow = low;
-                p_15s->VL_TroughBar = barToProcess;
-                p_15s->VL_ConfirmLevel = high;
-                p_15s->VL_ConfirmLevelBar = barToProcess;
-                
-                if (i_DetailedLog.GetYesNo()) {
-                    SCString msg;
-                    msg.Format("  VL STARTED: Bar %d, Close(%.2f)<PrevLow(%.2f), Trough=%.2f, ConfirmLvl=%.2f, Body=%.2f",
-                        barToProcess, close, prev_low, low, high, bodySize);
-                    sc.AddMessageToLog(msg, 0);
-                }
-            } else if (close < prev_low && i_DetailedLog.GetYesNo()) {
-                SCString msg;
-                msg.Format("  VL NOT STARTED: Bar %d, Close<PrevLow but body too small (%.2f < %.2f)",
-                    barToProcess, bodySize, minBodySize);
-                sc.AddMessageToLog(msg, 0);
-            }
-        } else {
-            // Update bestaande VL search
-            bool troughUpdated = false;
-            bool anchorUpdated = false;
-            
-            // Check voor nieuwe TROUGH (elke lagere low)
-            if (low < p_15s->VL_TroughLow) {
-                p_15s->VL_TroughLow = low;
-                p_15s->VL_TroughBar = barToProcess;
-                troughUpdated = true;
-            }
-            
-            // Check voor nieuwe ANCHOR (close < prev_low)
-            if (close < prev_low) {
-                p_15s->VL_ConfirmLevel = high;
-                p_15s->VL_ConfirmLevelBar = barToProcess;
-                anchorUpdated = true;
-            }
-            
-            if (i_DetailedLog.GetYesNo() && (troughUpdated || anchorUpdated)) {
-                SCString msg;
-                if (troughUpdated && anchorUpdated) {
-                    msg.Format("  VL UPDATED: Bar %d, NewTrough=%.2f, NewAnchor(ConfirmLvl=%.2f), Body=%.2f",
-                        barToProcess, low, high, bodySize);
-                } else if (troughUpdated) {
-                    msg.Format("  VL TROUGH UPDATED: Bar %d, NewTrough=%.2f (anchor unchanged, ConfirmLvl=%.2f)",
-                        barToProcess, low, p_15s->VL_ConfirmLevel);
-                } else if (anchorUpdated) {
-                    msg.Format("  VL ANCHOR UPDATED: Bar %d, NewConfirmLvl=%.2f (trough unchanged=%.2f)",
-                        barToProcess, high, p_15s->VL_TroughLow);
-                }
-                sc.AddMessageToLog(msg, 0);
-            }
-        }
-    } // Einde processing block
-    } // End 15-sec processing
+    }
 
     // ========================================================================
-    // STAP 3: VISUALISATIE - CONFIRM LIJNEN (alle timeframes)
+    // CONFIRM LINES VISUALIZATION
     // ========================================================================
     if (i == sc.ArraySize - 1) {
-        // Helper functie om lijn te tekenen
-        auto DrawConfirmLine = [&](int lineNumber, s_TimeframeScanner* scanner, int color) {
+        auto DrawConfirmLine = [&](int lineNumber, s_TimeframeScanner* scanner, int color, const char* tfName) {
             sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, lineNumber);
             
             bool shouldDrawLine = false;
-            int lineBeginBar_15s = -1;  // 15-SEC bar index!
+            int lineBeginBar_15s = -1;
             float lineValue = 0.0f;
             
             if (scanner->WhatToPlotNext == s_TimeframeScanner::PLOT_VH && scanner->VH_Active) {
                 shouldDrawLine = true;
-                lineBeginBar_15s = scanner->VH_ConfirmLevelBar_15s;  // Gebruik 15s bar index!
+                lineBeginBar_15s = scanner->VH_ConfirmLevelBar_15s;
                 lineValue = scanner->VH_ConfirmLevel;
+                
+                if (i_DetailedLog.GetYesNo()) {
+                    SCString msg;
+                    msg.Format("[%s] Drawing VH confirm line: 15s_bar %d, level %.2f, Peak=%.2f",
+                        tfName, lineBeginBar_15s, lineValue, scanner->VH_PeakHigh);
+                    sc.AddMessageToLog(msg, 0);
+                }
             } else if (scanner->WhatToPlotNext == s_TimeframeScanner::PLOT_VL && scanner->VL_Active) {
                 shouldDrawLine = true;
-                lineBeginBar_15s = scanner->VL_ConfirmLevelBar_15s;  // Gebruik 15s bar index!
+                lineBeginBar_15s = scanner->VL_ConfirmLevelBar_15s;
                 lineValue = scanner->VL_ConfirmLevel;
+                
+                if (i_DetailedLog.GetYesNo()) {
+                    SCString msg;
+                    msg.Format("[%s] Drawing VL confirm line: 15s_bar %d, level %.2f, Trough=%.2f",
+                        tfName, lineBeginBar_15s, lineValue, scanner->VL_TroughLow);
+                    sc.AddMessageToLog(msg, 0);
+                }
             }
             
             if (shouldDrawLine && lineBeginBar_15s >= 0) {
-                int lineEndBar = i;  // Altijd tot nu (current 15s bar)
+                int lineEndBar = i;
                 if (lineEndBar < lineBeginBar_15s + 3) {
                     lineEndBar = lineBeginBar_15s + 3;
                 }
@@ -1200,8 +1018,7 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
             }
         };
         
-        // Teken lijnen voor alle enabled timeframes
-        // Voor 15-sec: gebruik normale ConfirmLevelBar (is al een 15s index)
+        // 15-sec confirm line (uses normal ConfirmLevelBar)
         if (i_15s_Enabled.GetYesNo()) {
             sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 200001);
             bool shouldDrawLine = false;
@@ -1210,12 +1027,26 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
             
             if (p_15s->WhatToPlotNext == s_TimeframeScanner::PLOT_VH && p_15s->VH_Active) {
                 shouldDrawLine = true;
-                lineBeginBar = p_15s->VH_ConfirmLevelBar;  // Normale bar index (is al 15s)
+                lineBeginBar = p_15s->VH_ConfirmLevelBar;
                 lineValue = p_15s->VH_ConfirmLevel;
+                
+                if (i_DetailedLog.GetYesNo()) {
+                    SCString msg;
+                    msg.Format("[15s] Drawing VH confirm line: bar %d, level %.2f (LOW), VH_Peak=%.2f@%d",
+                        lineBeginBar, lineValue, p_15s->VH_PeakHigh, p_15s->VH_PeakBar);
+                    sc.AddMessageToLog(msg, 0);
+                }
             } else if (p_15s->WhatToPlotNext == s_TimeframeScanner::PLOT_VL && p_15s->VL_Active) {
                 shouldDrawLine = true;
-                lineBeginBar = p_15s->VL_ConfirmLevelBar;  // Normale bar index (is al 15s)
+                lineBeginBar = p_15s->VL_ConfirmLevelBar;
                 lineValue = p_15s->VL_ConfirmLevel;
+                
+                if (i_DetailedLog.GetYesNo()) {
+                    SCString msg;
+                    msg.Format("[15s] Drawing VL confirm line: bar %d, level %.2f (HIGH), VL_Trough=%.2f@%d",
+                        lineBeginBar, lineValue, p_15s->VL_TroughLow, p_15s->VL_TroughBar);
+                    sc.AddMessageToLog(msg, 0);
+                }
             }
             
             if (shouldDrawLine && lineBeginBar >= 0) {
@@ -1241,15 +1072,15 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
             }
         }
         
-        // Voor hogere TF's: gebruik _15s variant
+        // Higher TF confirm lines
         if (i_1m_Enabled.GetYesNo()) {
-            DrawConfirmLine(200002, p_1m, i_1m_SymbolColor.GetColor());  // 1min color
+            DrawConfirmLine(200002, p_1m, i_1m_SymbolColor.GetColor(), "1MIN");
         }
         if (i_5m_Enabled.GetYesNo()) {
-            DrawConfirmLine(200003, p_5m, i_5m_SymbolColor.GetColor());  // 5min color
+            DrawConfirmLine(200003, p_5m, i_5m_SymbolColor.GetColor(), "5MIN");
         }
         if (i_15m_Enabled.GetYesNo()) {
-            DrawConfirmLine(200004, p_15m, i_15m_SymbolColor.GetColor());  // 15min color
+            DrawConfirmLine(200004, p_15m, i_15m_SymbolColor.GetColor(), "15MIN");
         }
     }
     
@@ -1257,16 +1088,13 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
     // HIGHER TIMEFRAMES PROCESSING
     // ========================================================================
     
-    // Build and scan 1-minute bars
+    // 1-MINUTE
     if (i_1m_Enabled.GetYesNo()) {
         SCDateTime currentBarTime = sc.BaseDateTimeIn[i];
         
-        // Check if we should start a new 1min bar
         if (ShouldStartNewBar(currentBarTime, 1, p_1m_CurrentBar->StartTime)) {
-            // Mark vorige bar als compleet EN process it
             p_1m_CurrentBar->IsComplete = true;
             
-            // Process the completed bar (if it has data)
             if (p_1m_CurrentBar->StartTime != 0) {
                 ScanHigherTFBar(sc, p_1m, p_1m_CurrentBar, sg_1m_VH, sg_1m_VL,
                                i_1m_SymbolOffset.GetInt(), "1MIN", i_DetailedLog.GetYesNo(),
@@ -1274,10 +1102,8 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
                                i_1m_ZigzagWidth.GetInt(), 310000);
             }
             
-            // Save huidige bar als previous VOOR reset
             p_1m_CurrentBar->SaveAsPrevious();
             
-            // Start new bar
             p_1m_CurrentBar->Reset();
             p_1m_CurrentBar->StartTime = currentBarTime;
             p_1m_CurrentBar->Open = sc.Open[i];
@@ -1289,7 +1115,6 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
             p_1m_CurrentBar->HighBar_15s = i;
             p_1m_CurrentBar->LowBar_15s = i;
         } else {
-            // Update existing bar
             if (sc.High[i] > p_1m_CurrentBar->High) {
                 p_1m_CurrentBar->High = sc.High[i];
                 p_1m_CurrentBar->HighBar_15s = i;
@@ -1303,19 +1128,20 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         }
     }
     
-    // Build and scan 5-minute bars
+    // 5-MINUTE
     if (i_5m_Enabled.GetYesNo()) {
         SCDateTime currentBarTime = sc.BaseDateTimeIn[i];
         
         if (ShouldStartNewBar(currentBarTime, 5, p_5m_CurrentBar->StartTime)) {
-            if (p_5m_CurrentBar->IsComplete) {
+            p_5m_CurrentBar->IsComplete = true;
+            
+            if (p_5m_CurrentBar->StartTime != 0) {
                 ScanHigherTFBar(sc, p_5m, p_5m_CurrentBar, sg_5m_VH, sg_5m_VL,
                                i_5m_SymbolOffset.GetInt(), "5MIN", i_DetailedLog.GetYesNo(),
                                i_5m_ZigzagEnabled.GetYesNo(), i_5m_ZigzagColor.GetColor(),
                                i_5m_ZigzagWidth.GetInt(), 320000);
             }
             
-            // Save huidige bar als previous VOOR reset
             p_5m_CurrentBar->SaveAsPrevious();
             
             p_5m_CurrentBar->Reset();
@@ -1328,7 +1154,6 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
             p_5m_CurrentBar->EndBar_15s = i;
             p_5m_CurrentBar->HighBar_15s = i;
             p_5m_CurrentBar->LowBar_15s = i;
-            p_5m_CurrentBar->IsComplete = true;
         } else {
             if (sc.High[i] > p_5m_CurrentBar->High) {
                 p_5m_CurrentBar->High = sc.High[i];
@@ -1343,19 +1168,20 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         }
     }
     
-    // Build and scan 15-minute bars
+    // 15-MINUTE
     if (i_15m_Enabled.GetYesNo()) {
         SCDateTime currentBarTime = sc.BaseDateTimeIn[i];
         
         if (ShouldStartNewBar(currentBarTime, 15, p_15m_CurrentBar->StartTime)) {
-            if (p_15m_CurrentBar->IsComplete) {
+            p_15m_CurrentBar->IsComplete = true;
+            
+            if (p_15m_CurrentBar->StartTime != 0) {
                 ScanHigherTFBar(sc, p_15m, p_15m_CurrentBar, sg_15m_VH, sg_15m_VL,
                                i_15m_SymbolOffset.GetInt(), "15MIN", i_DetailedLog.GetYesNo(),
                                i_15m_ZigzagEnabled.GetYesNo(), i_15m_ZigzagColor.GetColor(),
                                i_15m_ZigzagWidth.GetInt(), 330000);
             }
             
-            // Save huidige bar als previous VOOR reset
             p_15m_CurrentBar->SaveAsPrevious();
             
             p_15m_CurrentBar->Reset();
@@ -1368,7 +1194,6 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
             p_15m_CurrentBar->EndBar_15s = i;
             p_15m_CurrentBar->HighBar_15s = i;
             p_15m_CurrentBar->LowBar_15s = i;
-            p_15m_CurrentBar->IsComplete = true;
         } else {
             if (sc.High[i] > p_15m_CurrentBar->High) {
                 p_15m_CurrentBar->High = sc.High[i];
