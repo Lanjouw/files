@@ -751,11 +751,8 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         *p_5m_CurrentBar = s_HigherTFBar();
         *p_15m_CurrentBar = s_HigherTFBar();
         
-        // ZET LastProcessedBar TERUG zodat bars opnieuw verwerkt worden!
-        p_15s->LastProcessedBar = startBar - 1;
-        
-        // Clear plots vanaf startBar
-        for (int j = startBar; j < sc.ArraySize; j++) {
+        // Clear ALLE plots (simpeler - clear alles en laat SierraChart recalculate doen)
+        for (int j = 0; j < sc.ArraySize; j++) {
             sg_15s_VH[j] = 0;
             sg_15s_VL[j] = 0;
             sg_1m_VH[j] = 0;
@@ -766,27 +763,30 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
             sg_15m_VL[j] = 0;
         }
         
-        // Clear confirm lijnen
+        // Clear alle lijnen
         sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 200001);
         sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 200002);
         sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 200003);
         sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 200004);
         
-        // Clear alle zigzag lijnen (max 10000 lijnen per TF)
         for (int line = 0; line < 10000; line++) {
-            sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 300000 + line);  // 15s
-            sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 310000 + line);  // 1m
-            sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 320000 + line);  // 5m
-            sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 330000 + line);  // 15m
+            sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 300000 + line);
+            sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 310000 + line);
+            sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 320000 + line);
+            sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 330000 + line);
         }
         
         // Reset trigger
         i_RecalcTrigger.SetYesNo(false);
         
+        // Force VOLLEDIGE recalculation door LastProcessedBar heel laag te zetten
+        p_15s->LastProcessedBar = -10000;
+        
         SCString msg;
-        msg.Format("MANUAL RECALC TRIGGERED: Cleared last %d minutes (%d bars), reprocessing from bar %d", 
-                   minutesBack, barsBack, startBar);
+        msg.Format("MANUAL RECALC TRIGGERED: All plots cleared, full recalculation will happen automatically");
         sc.AddMessageToLog(msg, 0);
+        
+        return;  // Exit, bij volgende call wordt recalculation gedetecteerd en alles opnieuw opgebouwd
     }
 
     // Detect full recalculation: als we terug gaan in tijd, reset state
