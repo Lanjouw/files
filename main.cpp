@@ -257,8 +257,8 @@ void ScanHigherTFBar(
             scanner->VL_StartBar_15s = exact15sBar;
             
             SCString msg;
-            msg.Format("[%s] VH PLOTTED at 15s bar %d (TF bar %d, scanned range %d-%d, Peak=%.2f)",
-                tfName, exact15sBar, barIndex, startScan, endScan, sc.High[exact15sBar]);
+            msg.Format("[%s] *** VH PLOTTED *** 15s bar %d (TF bar %d), TF Close=%.2f < ConfirmLvl=%.2f, Peak=%.2f, Scanned range %d-%d",
+                tfName, exact15sBar, barIndex, close, scanner->VH_ConfirmLevel, sc.High[exact15sBar], startScan, endScan);
             sc.AddMessageToLog(msg, 0);
             
             // Check stale VL search
@@ -301,8 +301,8 @@ void ScanHigherTFBar(
             scanner->VH_StartBar_15s = exact15sBar;
             
             SCString msg;
-            msg.Format("[%s] VL PLOTTED at 15s bar %d (TF bar %d, scanned range %d-%d, Trough=%.2f)",
-                tfName, exact15sBar, barIndex, startScan, endScan, sc.Low[exact15sBar]);
+            msg.Format("[%s] *** VL PLOTTED *** 15s bar %d (TF bar %d), TF Close=%.2f > ConfirmLvl=%.2f, Trough=%.2f, Scanned range %d-%d",
+                tfName, exact15sBar, barIndex, close, scanner->VL_ConfirmLevel, sc.Low[exact15sBar], startScan, endScan);
             sc.AddMessageToLog(msg, 0);
             
             // Check stale VH search
