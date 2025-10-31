@@ -39,6 +39,11 @@ struct s_TimeframeScanner {
     int LastVL_PlotBar = -1;          // Laatste VL plot (in eigen TF)
     int LastVH_PlotBar_15s = -1;      // Laatste VH plot (exact 15-sec bar)
     int LastVL_PlotBar_15s = -1;      // Laatste VL plot (exact 15-sec bar)
+    
+    // Voor zigzag lijnen
+    int LastPlot_15s = -1;            // Laatste plot (VH of VL) 15-sec bar
+    float LastPlot_Price = 0.0f;      // Laatste plot prijs
+    int ZigzagLineCounter = 0;        // Counter voor unieke line numbers
 };
 
 // ============================================================================
@@ -139,6 +144,43 @@ int FindExact15sBarWithLowestLow(SCStudyInterfaceRef& sc, int startBar_15s, int 
     return minBar;
 }
 
+// Teken zigzag lijn van vorige plot naar huidige plot
+void DrawZigzagLine(
+    SCStudyInterfaceRef& sc,
+    s_TimeframeScanner* scanner,
+    int currentBar_15s,
+    float currentPrice,
+    int baseLineNumber,
+    int color,
+    int width
+) {
+    // Als er een vorige plot is, teken lijn
+    if (scanner->LastPlot_15s >= 0 && scanner->LastPlot_Price > 0) {
+        int lineNumber = baseLineNumber + scanner->ZigzagLineCounter;
+        
+        s_UseTool tool;
+        tool.DrawingType = DRAWING_LINE;
+        tool.LineNumber = lineNumber;
+        tool.AddMethod = UTAM_ADD_OR_ADJUST;
+        tool.BeginIndex = scanner->LastPlot_15s;
+        tool.BeginValue = scanner->LastPlot_Price;
+        tool.EndIndex = currentBar_15s;
+        tool.EndValue = currentPrice;
+        tool.Color = color;
+        tool.LineWidth = width;
+        tool.LineStyle = LINESTYLE_SOLID;
+        tool.ExtendLeft = false;
+        tool.ExtendRight = false;
+        sc.UseTool(tool);
+        
+        scanner->ZigzagLineCounter++;
+    }
+    
+    // Update laatste plot
+    scanner->LastPlot_15s = currentBar_15s;
+    scanner->LastPlot_Price = currentPrice;
+}
+
 // Scan een higher timeframe bar voor VH/VL (OP TF NIVEAU!)
 void ScanHigherTFBar(
     SCStudyInterfaceRef& sc,
@@ -148,7 +190,11 @@ void ScanHigherTFBar(
     SCSubgraphRef& sg_VL,
     int symbolOffset,
     const char* tfName,
-    bool detailedLog
+    bool detailedLog,
+    bool zigzagEnabled,
+    int zigzagColor,
+    int zigzagWidth,
+    int baseLineNumber
 ) {
     if (!tfBar->IsComplete) return;
     
@@ -191,6 +237,12 @@ void ScanHigherTFBar(
         if (exact15sBar >= 0) {
             float plotPrice = sc.High[exact15sBar] + (symbolOffset * sc.TickSize);
             sg_VH[exact15sBar] = plotPrice;
+            
+            // Teken zigzag lijn (als enabled)
+            if (zigzagEnabled) {
+                DrawZigzagLine(sc, scanner, exact15sBar, plotPrice, baseLineNumber,
+                              zigzagColor, zigzagWidth);
+            }
             
             scanner->LastPlottedType = s_TimeframeScanner::LAST_VH;
             scanner->WhatToPlotNext = s_TimeframeScanner::PLOT_VL;
@@ -240,6 +292,12 @@ void ScanHigherTFBar(
         if (exact15sBar >= 0) {
             float plotPrice = sc.Low[exact15sBar] - (symbolOffset * sc.TickSize);
             sg_VL[exact15sBar] = plotPrice;
+            
+            // Teken zigzag lijn (als enabled)
+            if (zigzagEnabled) {
+                DrawZigzagLine(sc, scanner, exact15sBar, plotPrice, baseLineNumber,
+                              zigzagColor, zigzagWidth);
+            }
             
             scanner->LastPlottedType = s_TimeframeScanner::LAST_VL;
             scanner->WhatToPlotNext = s_TimeframeScanner::PLOT_VH;
@@ -418,6 +476,23 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
     // General
     SCInputRef i_LineWidth = sc.Input[50];
     SCInputRef i_DetailedLog = sc.Input[51];
+    
+    // Zigzag lines
+    SCInputRef i_15s_ZigzagEnabled = sc.Input[60];
+    SCInputRef i_15s_ZigzagColor = sc.Input[61];
+    SCInputRef i_15s_ZigzagWidth = sc.Input[62];
+    
+    SCInputRef i_1m_ZigzagEnabled = sc.Input[63];
+    SCInputRef i_1m_ZigzagColor = sc.Input[64];
+    SCInputRef i_1m_ZigzagWidth = sc.Input[65];
+    
+    SCInputRef i_5m_ZigzagEnabled = sc.Input[66];
+    SCInputRef i_5m_ZigzagColor = sc.Input[67];
+    SCInputRef i_5m_ZigzagWidth = sc.Input[68];
+    
+    SCInputRef i_15m_ZigzagEnabled = sc.Input[69];
+    SCInputRef i_15m_ZigzagColor = sc.Input[70];
+    SCInputRef i_15m_ZigzagWidth = sc.Input[71];
 
     // ========================================================================
     // SUBGRAPHS
@@ -497,6 +572,35 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         i_LineWidth.SetInt(2);
         i_DetailedLog.Name = "Enable Detailed Logging";
         i_DetailedLog.SetYesNo(false);
+        
+        // Zigzag Inputs
+        i_15s_ZigzagEnabled.Name = "15sec: Zigzag Enabled";
+        i_15s_ZigzagEnabled.SetYesNo(false);
+        i_15s_ZigzagColor.Name = "15sec: Zigzag Color";
+        i_15s_ZigzagColor.SetColor(RGB(0, 0, 0));  // Black
+        i_15s_ZigzagWidth.Name = "15sec: Zigzag Width";
+        i_15s_ZigzagWidth.SetInt(1);
+        
+        i_1m_ZigzagEnabled.Name = "1min: Zigzag Enabled";
+        i_1m_ZigzagEnabled.SetYesNo(true);
+        i_1m_ZigzagColor.Name = "1min: Zigzag Color";
+        i_1m_ZigzagColor.SetColor(RGB(0, 255, 0));  // Green
+        i_1m_ZigzagWidth.Name = "1min: Zigzag Width";
+        i_1m_ZigzagWidth.SetInt(2);
+        
+        i_5m_ZigzagEnabled.Name = "5min: Zigzag Enabled";
+        i_5m_ZigzagEnabled.SetYesNo(true);
+        i_5m_ZigzagColor.Name = "5min: Zigzag Color";
+        i_5m_ZigzagColor.SetColor(RGB(255, 0, 0));  // Red
+        i_5m_ZigzagWidth.Name = "5min: Zigzag Width";
+        i_5m_ZigzagWidth.SetInt(2);
+        
+        i_15m_ZigzagEnabled.Name = "15min: Zigzag Enabled";
+        i_15m_ZigzagEnabled.SetYesNo(true);
+        i_15m_ZigzagColor.Name = "15min: Zigzag Color";
+        i_15m_ZigzagColor.SetColor(RGB(255, 0, 255));  // Purple
+        i_15m_ZigzagWidth.Name = "15min: Zigzag Width";
+        i_15m_ZigzagWidth.SetInt(3);
 
         // 15-sec Subgraphs
         sg_15s_VH.Name = "15s VH";
@@ -748,6 +852,12 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
             float plotPrice = p_15s->VH_PeakHigh + (i_15s_SymbolOffset.GetInt() * sc.TickSize);
             sg_15s_VH[p_15s->VH_PeakBar] = plotPrice;
             
+            // Teken zigzag lijn (als enabled)
+            if (i_15s_ZigzagEnabled.GetYesNo()) {
+                DrawZigzagLine(sc, p_15s, p_15s->VH_PeakBar, plotPrice, 300000,
+                              i_15s_ZigzagColor.GetColor(), i_15s_ZigzagWidth.GetInt());
+            }
+            
             // Update laatste plot type
             p_15s->LastPlottedType = s_TimeframeScanner::LAST_VH;
             
@@ -804,6 +914,12 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         if (vl_confirmed) {
             float plotPrice = p_15s->VL_TroughLow - (i_15s_SymbolOffset.GetInt() * sc.TickSize);
             sg_15s_VL[p_15s->VL_TroughBar] = plotPrice;
+            
+            // Teken zigzag lijn (als enabled)
+            if (i_15s_ZigzagEnabled.GetYesNo()) {
+                DrawZigzagLine(sc, p_15s, p_15s->VL_TroughBar, plotPrice, 300000,
+                              i_15s_ZigzagColor.GetColor(), i_15s_ZigzagWidth.GetInt());
+            }
             
             // Update laatste plot type
             p_15s->LastPlottedType = s_TimeframeScanner::LAST_VL;
@@ -1092,7 +1208,9 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
             // Process the completed bar (if it has data)
             if (p_1m_CurrentBar->StartTime != 0) {
                 ScanHigherTFBar(sc, p_1m, p_1m_CurrentBar, sg_1m_VH, sg_1m_VL,
-                               i_1m_SymbolOffset.GetInt(), "1MIN", i_DetailedLog.GetYesNo());
+                               i_1m_SymbolOffset.GetInt(), "1MIN", i_DetailedLog.GetYesNo(),
+                               i_1m_ZigzagEnabled.GetYesNo(), i_1m_ZigzagColor.GetColor(),
+                               i_1m_ZigzagWidth.GetInt(), 310000);
             }
             
             // Save huidige bar als previous VOOR reset
@@ -1131,7 +1249,9 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         if (ShouldStartNewBar(currentBarTime, 5, p_5m_CurrentBar->StartTime)) {
             if (p_5m_CurrentBar->IsComplete) {
                 ScanHigherTFBar(sc, p_5m, p_5m_CurrentBar, sg_5m_VH, sg_5m_VL,
-                               i_5m_SymbolOffset.GetInt(), "5MIN", i_DetailedLog.GetYesNo());
+                               i_5m_SymbolOffset.GetInt(), "5MIN", i_DetailedLog.GetYesNo(),
+                               i_5m_ZigzagEnabled.GetYesNo(), i_5m_ZigzagColor.GetColor(),
+                               i_5m_ZigzagWidth.GetInt(), 320000);
             }
             
             // Save huidige bar als previous VOOR reset
@@ -1169,7 +1289,9 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         if (ShouldStartNewBar(currentBarTime, 15, p_15m_CurrentBar->StartTime)) {
             if (p_15m_CurrentBar->IsComplete) {
                 ScanHigherTFBar(sc, p_15m, p_15m_CurrentBar, sg_15m_VH, sg_15m_VL,
-                               i_15m_SymbolOffset.GetInt(), "15MIN", i_DetailedLog.GetYesNo());
+                               i_15m_SymbolOffset.GetInt(), "15MIN", i_DetailedLog.GetYesNo(),
+                               i_15m_ZigzagEnabled.GetYesNo(), i_15m_ZigzagColor.GetColor(),
+                               i_15m_ZigzagWidth.GetInt(), 330000);
             }
             
             // Save huidige bar als previous VOOR reset
