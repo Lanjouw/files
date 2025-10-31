@@ -582,7 +582,7 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         i_15s_ZigzagWidth.SetInt(1);
         
         i_1m_ZigzagEnabled.Name = "1min: Zigzag Enabled";
-        i_1m_ZigzagEnabled.SetYesNo(false);  // Default OFF
+        i_1m_ZigzagEnabled.SetYesNo(true);  // TEST: Default ON
         i_1m_ZigzagColor.Name = "1min: Zigzag Color";
         i_1m_ZigzagColor.SetColor(RGB(0, 255, 0));  // Green
         i_1m_ZigzagWidth.Name = "1min: Zigzag Width";
