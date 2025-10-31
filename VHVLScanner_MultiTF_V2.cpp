@@ -146,17 +146,97 @@ int FindExact15sBarWithLowestLow(SCStudyInterfaceRef& sc, int startBar_15s, int 
     return minBar;
 }
 
-// Calculate ATR (Average True Range)
+// Calculate ATR (Average True Range) - proper formula on base timeframe
 float CalculateATR(SCStudyInterfaceRef& sc, int period, int endBar) {
-    if (endBar < period) return 0.0f;
+    if (endBar < period + 1) return 0.0f;  // Need at least period+1 bars for prev_close
     
     float sum = 0.0f;
+    int count = 0;
     for (int i = endBar - period + 1; i <= endBar; i++) {
-        float tr = sc.High[i] - sc.Low[i];  // Simplified: just range
-        sum += tr;
+        if (i <= 0) continue;
+        
+        // True Range = max of:
+        // 1. High - Low
+        // 2. |High - Previous Close|
+        // 3. |Low - Previous Close|
+        float prevClose = sc.Close[i - 1];
+        float range1 = sc.High[i] - sc.Low[i];
+        float range2 = fabs(sc.High[i] - prevClose);
+        float range3 = fabs(sc.Low[i] - prevClose);
+        
+        float trueRange = range1;
+        if (range2 > trueRange) trueRange = range2;
+        if (range3 > trueRange) trueRange = range3;
+        
+        sum += trueRange;
+        count++;
     }
-    return sum / period;
+    
+    if (count == 0) return 0.0f;
+    return sum / count;
 }
+
+// Store historical 1-min bars for ATR calculation
+struct s_1MinBarHistory {
+    float High;
+    float Low;
+    float Close;
+    SCDateTime Time;
+};
+
+const int MAX_1MIN_HISTORY = 100;
+
+struct s_ATRData {
+    s_1MinBarHistory bars[MAX_1MIN_HISTORY];
+    int count;
+    int writeIndex;
+    
+    s_ATRData() : count(0), writeIndex(0) {
+        for (int i = 0; i < MAX_1MIN_HISTORY; i++) {
+            bars[i].High = 0;
+            bars[i].Low = 0;
+            bars[i].Close = 0;
+            bars[i].Time = 0;
+        }
+    }
+    
+    void AddBar(float h, float l, float c, SCDateTime t) {
+        bars[writeIndex].High = h;
+        bars[writeIndex].Low = l;
+        bars[writeIndex].Close = c;
+        bars[writeIndex].Time = t;
+        writeIndex = (writeIndex + 1) % MAX_1MIN_HISTORY;
+        if (count < MAX_1MIN_HISTORY) count++;
+    }
+    
+    float CalculateATR(int period) {
+        if (count < period + 1) return 0.0f;
+        
+        float sum = 0.0f;
+        int validCount = 0;
+        
+        for (int i = 1; i < count && validCount < period; i++) {
+            int idx = (writeIndex - 1 - i + MAX_1MIN_HISTORY) % MAX_1MIN_HISTORY;
+            int prevIdx = (idx - 1 + MAX_1MIN_HISTORY) % MAX_1MIN_HISTORY;
+            
+            if (bars[prevIdx].Close == 0) continue;
+            
+            float range1 = bars[idx].High - bars[idx].Low;
+            float range2 = fabs(bars[idx].High - bars[prevIdx].Close);
+            float range3 = fabs(bars[idx].Low - bars[prevIdx].Close);
+            
+            float tr = range1;
+            if (range2 > tr) tr = range2;
+            if (range3 > tr) tr = range3;
+            
+            sum += tr;
+            validCount++;
+        }
+        
+        if (validCount == 0) return 0.0f;
+        return sum / validCount;
+    }
+};
 
 void DrawZigzagLine(
     SCStudyInterfaceRef& sc,
@@ -697,6 +777,7 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
     s_HigherTFBar* p_1m_CurrentBar = (s_HigherTFBar*)sc.GetPersistentPointer(5);
     s_HigherTFBar* p_5m_CurrentBar = (s_HigherTFBar*)sc.GetPersistentPointer(6);
     s_HigherTFBar* p_15m_CurrentBar = (s_HigherTFBar*)sc.GetPersistentPointer(7);
+    s_ATRData* p_ATRData = (s_ATRData*)sc.GetPersistentPointer(8);
     
     if (p_15s == NULL) {
         p_15s = new s_TimeframeScanner();
@@ -725,6 +806,10 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
     if (p_15m_CurrentBar == NULL) {
         p_15m_CurrentBar = new s_HigherTFBar();
         sc.SetPersistentPointer(7, p_15m_CurrentBar);
+    }
+    if (p_ATRData == NULL) {
+        p_ATRData = new s_ATRData();
+        sc.SetPersistentPointer(8, p_ATRData);
     }
 
     if (sc.LastCallToFunction) {
@@ -756,6 +841,10 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
             delete p_15m_CurrentBar;
             sc.SetPersistentPointer(7, NULL);
         }
+        if (p_ATRData != NULL) {
+            delete p_ATRData;
+            sc.SetPersistentPointer(8, NULL);
+        }
         return;
     }
 
@@ -786,6 +875,7 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         *p_1m_CurrentBar = s_HigherTFBar();
         *p_5m_CurrentBar = s_HigherTFBar();
         *p_15m_CurrentBar = s_HigherTFBar();
+        *p_ATRData = s_ATRData();  // Reset ATR history
         
         // Clear plots in range
         for (int j = startBar; j <= i; j++) {
@@ -840,6 +930,7 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         *p_1m_CurrentBar = s_HigherTFBar();
         *p_5m_CurrentBar = s_HigherTFBar();
         *p_15m_CurrentBar = s_HigherTFBar();
+        *p_ATRData = s_ATRData();  // Reset ATR history
         
         for (int j = 0; j < sc.ArraySize; j++) {
             sg_15s_VH[j] = 0;
@@ -1162,6 +1253,10 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
             p_1m_CurrentBar->IsComplete = true;
             
             if (p_1m_CurrentBar->StartTime != 0) {
+                // Add completed bar to ATR history
+                p_ATRData->AddBar(p_1m_CurrentBar->High, p_1m_CurrentBar->Low, 
+                                 p_1m_CurrentBar->Close, p_1m_CurrentBar->StartTime);
+                
                 ScanHigherTFBar(sc, p_1m, p_1m_CurrentBar, sg_1m_VH, sg_1m_VL,
                                i_1m_SymbolOffset.GetInt(), "1MIN", i_DetailedLog.GetYesNo(),
                                i_1m_ZigzagEnabled.GetYesNo(), i_1m_ZigzagColor.GetColor(),
@@ -1369,21 +1464,24 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         if (i_ATR_ShowMultiplier.GetYesNo() && i_1m_Enabled.GetYesNo() && p_1m_CurrentBar->StartTime != 0) {
             dashboardText += "━━━━━━━━━━━━━━━━━━\n";
             
-            // Calculate ATR on 1-min data (approximate using 15-sec bars)
-            // For proper ATR we need 1-min bars, so we use current developing 1-min bar
+            // Calculate ATR on completed 1-min bars (proper ATR from history)
             int atrPeriod = i_ATR_Period.GetInt();
+            float atr = p_ATRData->CalculateATR(atrPeriod);
             
-            // Calculate ATR on 15-sec chart (approximate)
-            float atr = CalculateATR(sc, atrPeriod * 4, i);  // *4 because 4x15sec = 1min
-            
-            // Current 1-min candle size
+            // Current developing 1-min candle size
             float currentCandleSize = p_1m_CurrentBar->High - p_1m_CurrentBar->Low;
             
-            float multiplier = (atr > 0) ? (currentCandleSize / atr) : 0.0f;
-            
-            SCString line;
-            line.Format("1MIN: %.1fx ATR(%d)\n", multiplier, atrPeriod);
-            dashboardText += line;
+            if (atr > 0.001f) {
+                float multiplier = currentCandleSize / atr;
+                SCString line;
+                line.Format("1MIN: %.1fx ATR(%d)\n", multiplier, atrPeriod);
+                dashboardText += line;
+            } else {
+                // Not enough data yet
+                SCString line;
+                line.Format("1MIN: ATR(%d) loading...\n", atrPeriod);
+                dashboardText += line;
+            }
         }
         
         // Draw dashboard

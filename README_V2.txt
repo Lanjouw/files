@@ -18,9 +18,11 @@ VERSION 2 - NEW FEATURES:
 
 3. ATR MULTIPLIER
    - Shows current 1-min candle size vs ATR
-   - Configurable ATR period (default: 20)
+   - Proper ATR calculation on completed 1-min bars
+   - Uses True Range formula (considers gaps)
+   - Configurable period (default: 20 bars)
    - Format: "1MIN: 2.3x ATR(20)"
-   - Helps assess candle strength
+   - Helps assess current candle strength
 
 ========================================================================
 DASHBOARD SETTINGS:
@@ -39,8 +41,18 @@ Input [64] - Dashboard: Font Size (default: 12)
 Input [65] - Dashboard: Background Color (default: Black)
 Input [66] - Dashboard: Text Color (default: White)
 
-Input [70] - ATR: Period (number of bars, default: 20)
+Input [70] - ATR: Period (number of 1-min bars, default: 20)
+             Calculates average of last N completed 1-min bars
 Input [71] - ATR: Show 1-Min Candle Size Multiplier (Yes/No)
+
+ATR FORMULA:
+  True Range = max of:
+    1. High - Low
+    2. |High - Previous Close|
+    3. |Low - Previous Close|
+  
+  ATR(20) = Average of last 20 True Range values
+  Multiplier = Current 1-min bar size / ATR(20)
 
 HOW TO POSITION:
 ✓ FIXED MODE (Recommended - Dashboard stays in place):
