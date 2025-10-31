@@ -291,19 +291,37 @@ SCSFExport scsf_VHVLScanner_SingleTF(SCStudyInterfaceRef sc)
                 }
             }
         } else {
-            // Peak en Anchor SAMEN updaten - alleen bij nieuwe peak!
+            // Peak en ConfirmLevel APART updaten!
+            bool peakUpdated = false;
+            bool confirmUpdated = false;
+            
+            // Peak: altijd bij hogere high
             if (high > state->VH_PeakHigh) {
                 state->VH_PeakHigh = high;
                 state->VH_PeakBar = barToProcess;
+                peakUpdated = true;
+            }
+            
+            // ConfirmLevel: alleen bij LAGERE low (laagste low van de hele search!)
+            if (low < state->VH_ConfirmLevel) {
                 state->VH_ConfirmLevel = low;
                 state->VH_ConfirmLevelBar = barToProcess;
-                
-                if (i_DetailedLog.GetYesNo()) {
-                    SCString msg;
+                confirmUpdated = true;
+            }
+            
+            if (i_DetailedLog.GetYesNo() && (peakUpdated || confirmUpdated)) {
+                SCString msg;
+                if (peakUpdated && confirmUpdated) {
                     msg.Format("VH UPDATED at bar %d: NewPeak=%.2f, NewConfirmLvl=%.2f (LOW)",
                         barToProcess, high, low);
-                    sc.AddMessageToLog(msg, 0);
+                } else if (peakUpdated) {
+                    msg.Format("VH PEAK UPDATED at bar %d: NewPeak=%.2f (ConfirmLvl unchanged=%.2f)",
+                        barToProcess, high, state->VH_ConfirmLevel);
+                } else {
+                    msg.Format("VH CONFIRM UPDATED at bar %d: NewConfirmLvl=%.2f (Peak unchanged=%.2f)",
+                        barToProcess, low, state->VH_PeakHigh);
                 }
+                sc.AddMessageToLog(msg, 0);
             }
         }
         
@@ -326,19 +344,37 @@ SCSFExport scsf_VHVLScanner_SingleTF(SCStudyInterfaceRef sc)
                 }
             }
         } else {
-            // Trough en Anchor SAMEN updaten - alleen bij nieuwe trough!
+            // Trough en ConfirmLevel APART updaten!
+            bool troughUpdated = false;
+            bool confirmUpdated = false;
+            
+            // Trough: altijd bij lagere low
             if (low < state->VL_TroughLow) {
                 state->VL_TroughLow = low;
                 state->VL_TroughBar = barToProcess;
+                troughUpdated = true;
+            }
+            
+            // ConfirmLevel: alleen bij HOGERE high (hoogste high van de hele search!)
+            if (high > state->VL_ConfirmLevel) {
                 state->VL_ConfirmLevel = high;
                 state->VL_ConfirmLevelBar = barToProcess;
-                
-                if (i_DetailedLog.GetYesNo()) {
-                    SCString msg;
+                confirmUpdated = true;
+            }
+            
+            if (i_DetailedLog.GetYesNo() && (troughUpdated || confirmUpdated)) {
+                SCString msg;
+                if (troughUpdated && confirmUpdated) {
                     msg.Format("VL UPDATED at bar %d: NewTrough=%.2f, NewConfirmLvl=%.2f (HIGH)",
                         barToProcess, low, high);
-                    sc.AddMessageToLog(msg, 0);
+                } else if (troughUpdated) {
+                    msg.Format("VL TROUGH UPDATED at bar %d: NewTrough=%.2f (ConfirmLvl unchanged=%.2f)",
+                        barToProcess, low, state->VL_ConfirmLevel);
+                } else {
+                    msg.Format("VL CONFIRM UPDATED at bar %d: NewConfirmLvl=%.2f (Trough unchanged=%.2f)",
+                        barToProcess, high, state->VL_TroughLow);
                 }
+                sc.AddMessageToLog(msg, 0);
             }
         }
     }
