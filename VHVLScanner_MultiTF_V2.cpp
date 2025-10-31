@@ -504,11 +504,12 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
     
     // Dashboard
     SCInputRef i_DashboardEnabled = sc.Input[60];
-    SCInputRef i_DashboardX = sc.Input[61];
-    SCInputRef i_DashboardY = sc.Input[62];
-    SCInputRef i_DashboardFontSize = sc.Input[63];
-    SCInputRef i_DashboardBgColor = sc.Input[64];
-    SCInputRef i_DashboardTextColor = sc.Input[65];
+    SCInputRef i_DashboardCorner = sc.Input[61];
+    SCInputRef i_DashboardOffsetBars = sc.Input[62];
+    SCInputRef i_DashboardOffsetTicks = sc.Input[63];
+    SCInputRef i_DashboardFontSize = sc.Input[64];
+    SCInputRef i_DashboardBgColor = sc.Input[65];
+    SCInputRef i_DashboardTextColor = sc.Input[66];
     
     // ATR
     SCInputRef i_ATR_Period = sc.Input[70];
@@ -617,10 +618,13 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         // Dashboard Inputs
         i_DashboardEnabled.Name = "Dashboard: Enabled";
         i_DashboardEnabled.SetYesNo(true);
-        i_DashboardX.Name = "Dashboard: X Position (pixels from left)";
-        i_DashboardX.SetInt(10);
-        i_DashboardY.Name = "Dashboard: Y Position (pixels from top)";
-        i_DashboardY.SetInt(50);
+        i_DashboardCorner.Name = "Dashboard: Corner Position";
+        i_DashboardCorner.SetCustomInputStrings("Top-Right;Top-Left;Bottom-Right;Bottom-Left");
+        i_DashboardCorner.SetCustomInputIndex(0);  // Top-Right default
+        i_DashboardOffsetBars.Name = "Dashboard: Offset (Bars from right edge)";
+        i_DashboardOffsetBars.SetInt(5);
+        i_DashboardOffsetTicks.Name = "Dashboard: Offset (Ticks from top/bottom)";
+        i_DashboardOffsetTicks.SetInt(20);
         i_DashboardFontSize.Name = "Dashboard: Font Size";
         i_DashboardFontSize.SetInt(12);
         i_DashboardBgColor.Name = "Dashboard: Background Color";
@@ -1392,9 +1396,25 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         tool.DrawingType = DRAWING_TEXT;
         tool.LineNumber = DASHBOARD_DRAWING;
         
-        // Use current bar time and a visible price level
-        tool.BeginDateTime = sc.BaseDateTimeIn[i];
-        tool.BeginValue = sc.High[i] + (5 * sc.TickSize);  // 5 ticks above current high
+        // Calculate position based on corner selection
+        int corner = i_DashboardCorner.GetIndex();
+        int offsetBars = i_DashboardOffsetBars.GetInt();
+        int offsetTicks = i_DashboardOffsetTicks.GetInt();
+        
+        // DateTime position (horizontal)
+        int barIndex = i - offsetBars;
+        if (barIndex < 0) barIndex = 0;
+        tool.BeginDateTime = sc.BaseDateTimeIn[barIndex];
+        
+        // Value position (vertical)
+        float tickOffset = offsetTicks * sc.TickSize;
+        if (corner == 0 || corner == 1) {
+            // Top positions
+            tool.BeginValue = sc.High[i] + tickOffset;
+        } else {
+            // Bottom positions
+            tool.BeginValue = sc.Low[i] - tickOffset;
+        }
         
         tool.UseRelativeVerticalValues = 0;
         tool.Text = dashboardText;
@@ -1404,13 +1424,23 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         tool.FontBold = 1;
         tool.AddMethod = UTAM_ADD_OR_ADJUST;
         tool.ReverseTextColor = 0;
-        tool.TextAlignment = DT_LEFT;
+        
+        // Text alignment based on corner
+        if (corner == 0 || corner == 2) {
+            // Right corners
+            tool.TextAlignment = DT_RIGHT;
+        } else {
+            // Left corners
+            tool.TextAlignment = DT_LEFT;
+        }
+        
         tool.TransparencyLevel = 50;  // Semi-transparent background
         
         sc.UseTool(tool);
         
         SCString logMsg;
-        logMsg.Format("Dashboard drawn at bar %d with text: %s", i, dashboardText.GetChars());
+        logMsg.Format("Dashboard drawn at bar %d, corner=%d, offsetBars=%d, offsetTicks=%d", 
+                      i, corner, offsetBars, offsetTicks);
         sc.AddMessageToLog(logMsg, 0);
     }
 }

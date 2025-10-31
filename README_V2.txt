@@ -26,14 +26,25 @@ VERSION 2 - NEW FEATURES:
 DASHBOARD SETTINGS:
 
 Input [60] - Dashboard: Enabled (Yes/No)
-Input [61] - Dashboard: X Position (pixels from left, default: 10)
-Input [62] - Dashboard: Y Position (pixels from top, default: 50)
-Input [63] - Dashboard: Font Size (default: 12)
-Input [64] - Dashboard: Background Color (default: Black)
-Input [65] - Dashboard: Text Color (default: White)
+Input [61] - Dashboard: Corner Position
+             Options: Top-Right / Top-Left / Bottom-Right / Bottom-Left
+             Default: Top-Right
+Input [62] - Dashboard: Offset (Bars from right edge)
+             Default: 5 bars (move dashboard left/right)
+Input [63] - Dashboard: Offset (Ticks from top/bottom)
+             Default: 20 ticks (move dashboard up/down)
+Input [64] - Dashboard: Font Size (default: 12)
+Input [65] - Dashboard: Background Color (default: Black)
+Input [66] - Dashboard: Text Color (default: White)
 
 Input [70] - ATR: Period (number of bars, default: 20)
 Input [71] - ATR: Show 1-Min Candle Size Multiplier (Yes/No)
+
+HOW TO POSITION:
+1. Choose corner: Top-Right, Top-Left, Bottom-Right, or Bottom-Left
+2. Adjust "Offset Bars" to move horizontally (higher = more left)
+3. Adjust "Offset Ticks" to move vertically (higher = more up/down)
+4. Dashboard updates in real-time!
 
 ========================================================================
 FILES TO SHARE:
