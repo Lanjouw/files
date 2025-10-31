@@ -582,21 +582,21 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         i_15s_ZigzagWidth.SetInt(1);
         
         i_1m_ZigzagEnabled.Name = "1min: Zigzag Enabled";
-        i_1m_ZigzagEnabled.SetYesNo(true);
+        i_1m_ZigzagEnabled.SetYesNo(false);  // Default OFF
         i_1m_ZigzagColor.Name = "1min: Zigzag Color";
         i_1m_ZigzagColor.SetColor(RGB(0, 255, 0));  // Green
         i_1m_ZigzagWidth.Name = "1min: Zigzag Width";
         i_1m_ZigzagWidth.SetInt(2);
         
         i_5m_ZigzagEnabled.Name = "5min: Zigzag Enabled";
-        i_5m_ZigzagEnabled.SetYesNo(true);
+        i_5m_ZigzagEnabled.SetYesNo(false);  // Default OFF
         i_5m_ZigzagColor.Name = "5min: Zigzag Color";
         i_5m_ZigzagColor.SetColor(RGB(255, 0, 0));  // Red
         i_5m_ZigzagWidth.Name = "5min: Zigzag Width";
         i_5m_ZigzagWidth.SetInt(2);
         
         i_15m_ZigzagEnabled.Name = "15min: Zigzag Enabled";
-        i_15m_ZigzagEnabled.SetYesNo(true);
+        i_15m_ZigzagEnabled.SetYesNo(false);  // Default OFF
         i_15m_ZigzagColor.Name = "15min: Zigzag Color";
         i_15m_ZigzagColor.SetColor(RGB(255, 0, 255));  // Purple
         i_15m_ZigzagWidth.Name = "15min: Zigzag Width";
