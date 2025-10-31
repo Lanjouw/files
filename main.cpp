@@ -488,6 +488,8 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
     // General
     SCInputRef i_LineWidth = sc.Input[50];
     SCInputRef i_DetailedLog = sc.Input[51];
+    SCInputRef i_RecalcTrigger = sc.Input[52];
+    SCInputRef i_RecalcMinutes = sc.Input[53];
 
     // ========================================================================
     // SUBGRAPHS
@@ -567,6 +569,10 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         i_LineWidth.SetInt(2);
         i_DetailedLog.Name = "Enable Detailed Logging";
         i_DetailedLog.SetYesNo(false);
+        i_RecalcTrigger.Name = "Trigger: Recalculate Last Period (set to Yes)";
+        i_RecalcTrigger.SetYesNo(false);
+        i_RecalcMinutes.Name = "Recalculate: How Many Minutes Back";
+        i_RecalcMinutes.SetInt(60);
         
         // Zigzag Inputs
         i_15s_ZigzagEnabled.Name = "15sec: Zigzag Enabled";
@@ -726,6 +732,61 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
     // ========================================================================
     int i = sc.Index;
     if (i < 2) return;
+    
+    // ========================================================================
+    // MANUAL RECALC TRIGGER
+    // ========================================================================
+    if (i_RecalcTrigger.GetYesNo()) {
+        int minutesBack = i_RecalcMinutes.GetInt();
+        int barsBack = minutesBack * 4;  // 4 bars per minute (15-sec)
+        int startBar = i - barsBack;
+        if (startBar < 2) startBar = 2;
+        
+        // Reset state
+        *p_15s = s_TimeframeScanner();
+        *p_1m = s_TimeframeScanner();
+        *p_5m = s_TimeframeScanner();
+        *p_15m = s_TimeframeScanner();
+        *p_1m_CurrentBar = s_HigherTFBar();
+        *p_5m_CurrentBar = s_HigherTFBar();
+        *p_15m_CurrentBar = s_HigherTFBar();
+        
+        // Clear plots vanaf startBar
+        for (int j = startBar; j < sc.ArraySize; j++) {
+            sg_15s_VH[j] = 0;
+            sg_15s_VL[j] = 0;
+            sg_1m_VH[j] = 0;
+            sg_1m_VL[j] = 0;
+            sg_5m_VH[j] = 0;
+            sg_5m_VL[j] = 0;
+            sg_15m_VH[j] = 0;
+            sg_15m_VL[j] = 0;
+        }
+        
+        // Clear confirm lijnen
+        sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 200001);
+        sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 200002);
+        sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 200003);
+        sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 200004);
+        
+        // Clear alle zigzag lijnen (max 10000 lijnen per TF)
+        for (int line = 0; line < 10000; line++) {
+            sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 300000 + line);  // 15s
+            sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 310000 + line);  // 1m
+            sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 320000 + line);  // 5m
+            sc.DeleteACSChartDrawing(sc.ChartNumber, DRAWING_LINE, 330000 + line);  // 15m
+        }
+        
+        // Reset trigger
+        i_RecalcTrigger.SetYesNo(false);
+        
+        SCString msg;
+        msg.Format("MANUAL RECALC TRIGGERED: Cleared last %d minutes (%d bars), restarting from bar %d", 
+                   minutesBack, barsBack, startBar);
+        sc.AddMessageToLog(msg, 0);
+        
+        return;  // Exit en laat volgende call opnieuw beginnen
+    }
 
     // Detect full recalculation: als we terug gaan in tijd, reset state
     if (i < p_15s->LastProcessedBar - 1) {
