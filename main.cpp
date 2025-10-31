@@ -44,6 +44,8 @@ struct s_TimeframeScanner {
     int LastPlot_15s = -1;            // Laatste plot (VH of VL) 15-sec bar
     float LastPlot_Price = 0.0f;      // Laatste plot prijs
     int ZigzagLineCounter = 0;        // Counter voor unieke line numbers
+    
+    bool IsInitialized = false;       // Is warmup gedaan?
 };
 
 // ============================================================================
@@ -726,10 +728,119 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
     // ========================================================================
     int i = sc.Index;
     if (i < 2) return;
+    
+    // ========================================================================
+    // WARMUP: Bij eerste run, bouw context op
+    // ========================================================================
+    if (!p_15s->IsInitialized && i >= 20) {
+        // Proces de laatste 20 bars om TF bar context op te bouwen (ZONDER plots!)
+        int warmupStart = i - 20;
+        if (warmupStart < 2) warmupStart = 2;
+        
+        for (int w = warmupStart; w < i; w++) {
+            // Build TF bars (zonder scanning)
+            if (i_1m_Enabled.GetYesNo()) {
+                SCDateTime wTime = sc.BaseDateTimeIn[w];
+                if (ShouldStartNewBar(wTime, 1, p_1m_CurrentBar->StartTime)) {
+                    p_1m_CurrentBar->SaveAsPrevious();
+                    p_1m_CurrentBar->Reset();
+                    p_1m_CurrentBar->StartTime = wTime;
+                    p_1m_CurrentBar->Open = sc.Open[w];
+                    p_1m_CurrentBar->High = sc.High[w];
+                    p_1m_CurrentBar->Low = sc.Low[w];
+                    p_1m_CurrentBar->Close = sc.Close[w];
+                    p_1m_CurrentBar->StartBar_15s = w;
+                    p_1m_CurrentBar->EndBar_15s = w;
+                    p_1m_CurrentBar->HighBar_15s = w;
+                    p_1m_CurrentBar->LowBar_15s = w;
+                    p_1m_CurrentBar->IsComplete = true;
+                } else {
+                    if (sc.High[w] > p_1m_CurrentBar->High) {
+                        p_1m_CurrentBar->High = sc.High[w];
+                        p_1m_CurrentBar->HighBar_15s = w;
+                    }
+                    if (sc.Low[w] < p_1m_CurrentBar->Low) {
+                        p_1m_CurrentBar->Low = sc.Low[w];
+                        p_1m_CurrentBar->LowBar_15s = w;
+                    }
+                    p_1m_CurrentBar->Close = sc.Close[w];
+                    p_1m_CurrentBar->EndBar_15s = w;
+                }
+            }
+            
+            // Hetzelfde voor 5min en 15min...
+            if (i_5m_Enabled.GetYesNo()) {
+                SCDateTime wTime = sc.BaseDateTimeIn[w];
+                if (ShouldStartNewBar(wTime, 5, p_5m_CurrentBar->StartTime)) {
+                    p_5m_CurrentBar->SaveAsPrevious();
+                    p_5m_CurrentBar->Reset();
+                    p_5m_CurrentBar->StartTime = wTime;
+                    p_5m_CurrentBar->Open = sc.Open[w];
+                    p_5m_CurrentBar->High = sc.High[w];
+                    p_5m_CurrentBar->Low = sc.Low[w];
+                    p_5m_CurrentBar->Close = sc.Close[w];
+                    p_5m_CurrentBar->StartBar_15s = w;
+                    p_5m_CurrentBar->EndBar_15s = w;
+                    p_5m_CurrentBar->HighBar_15s = w;
+                    p_5m_CurrentBar->LowBar_15s = w;
+                    p_5m_CurrentBar->IsComplete = true;
+                } else {
+                    if (sc.High[w] > p_5m_CurrentBar->High) {
+                        p_5m_CurrentBar->High = sc.High[w];
+                        p_5m_CurrentBar->HighBar_15s = w;
+                    }
+                    if (sc.Low[w] < p_5m_CurrentBar->Low) {
+                        p_5m_CurrentBar->Low = sc.Low[w];
+                        p_5m_CurrentBar->LowBar_15s = w;
+                    }
+                    p_5m_CurrentBar->Close = sc.Close[w];
+                    p_5m_CurrentBar->EndBar_15s = w;
+                }
+            }
+            
+            if (i_15m_Enabled.GetYesNo()) {
+                SCDateTime wTime = sc.BaseDateTimeIn[w];
+                if (ShouldStartNewBar(wTime, 15, p_15m_CurrentBar->StartTime)) {
+                    p_15m_CurrentBar->SaveAsPrevious();
+                    p_15m_CurrentBar->Reset();
+                    p_15m_CurrentBar->StartTime = wTime;
+                    p_15m_CurrentBar->Open = sc.Open[w];
+                    p_15m_CurrentBar->High = sc.High[w];
+                    p_15m_CurrentBar->Low = sc.Low[w];
+                    p_15m_CurrentBar->Close = sc.Close[w];
+                    p_15m_CurrentBar->StartBar_15s = w;
+                    p_15m_CurrentBar->EndBar_15s = w;
+                    p_15m_CurrentBar->HighBar_15s = w;
+                    p_15m_CurrentBar->LowBar_15s = w;
+                    p_15m_CurrentBar->IsComplete = true;
+                } else {
+                    if (sc.High[w] > p_15m_CurrentBar->High) {
+                        p_15m_CurrentBar->High = sc.High[w];
+                        p_15m_CurrentBar->HighBar_15s = w;
+                    }
+                    if (sc.Low[w] < p_15m_CurrentBar->Low) {
+                        p_15m_CurrentBar->Low = sc.Low[w];
+                        p_15m_CurrentBar->LowBar_15s = w;
+                    }
+                    p_15m_CurrentBar->Close = sc.Close[w];
+                    p_15m_CurrentBar->EndBar_15s = w;
+                }
+            }
+        }
+        
+        p_15s->IsInitialized = true;
+        p_1m->IsInitialized = true;
+        p_5m->IsInitialized = true;
+        p_15m->IsInitialized = true;
+        
+        SCString msg;
+        msg.Format("WARMUP COMPLETE: Built TF bar context from last 20 bars (bar %d to %d)", warmupStart, i-1);
+        sc.AddMessageToLog(msg, 0);
+    }
 
     // Detect full recalculation: als we terug gaan in tijd, reset state
     if (i < p_15s->LastProcessedBar - 1) {
-        // Recalculation detected - reset ALLES compleet
+        // Recalculation detected - reset ALLES compleet (inclusief IsInitialized!)
         *p_15s = s_TimeframeScanner();
         *p_1m = s_TimeframeScanner();
         *p_5m = s_TimeframeScanner();
