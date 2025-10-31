@@ -1106,13 +1106,26 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         SCDateTime currentBarTime = sc.BaseDateTimeIn[i];
         
         if (ShouldStartNewBar(currentBarTime, 5, p_5m_CurrentBar->StartTime)) {
+            // EEN nieuwe 5-min bar start - log dit EENMALIG
+            SCString msg;
+            msg.Format("[5MIN-DEBUG] NEW 5-min bar detected at 15s bar %d. Prev bar: H=%.2f L=%.2f C=%.2f, StartTime=%d",
+                i, p_5m_CurrentBar->High, p_5m_CurrentBar->Low, p_5m_CurrentBar->Close,
+                (p_5m_CurrentBar->StartTime != 0 ? 1 : 0));
+            sc.AddMessageToLog(msg, 0);
+            
             p_5m_CurrentBar->IsComplete = true;
             
             if (p_5m_CurrentBar->StartTime != 0) {
+                sc.AddMessageToLog("[5MIN-DEBUG] Calling ScanHigherTFBar for previous 5-min bar...", 0);
+                
                 ScanHigherTFBar(sc, p_5m, p_5m_CurrentBar, sg_5m_VH, sg_5m_VL,
                                i_5m_SymbolOffset.GetInt(), "5MIN", i_DetailedLog.GetYesNo(),
                                i_5m_ZigzagEnabled.GetYesNo(), i_5m_ZigzagColor.GetColor(),
                                i_5m_ZigzagWidth.GetInt(), 320000);
+                               
+                sc.AddMessageToLog("[5MIN-DEBUG] ScanHigherTFBar completed", 0);
+            } else {
+                sc.AddMessageToLog("[5MIN-DEBUG] Skipping scan - StartTime=0 (first bar after init)", 0);
             }
             
             p_5m_CurrentBar->SaveAsPrevious();
