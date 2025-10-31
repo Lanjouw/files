@@ -278,8 +278,8 @@ SCSFExport scsf_VHVLScanner_SingleTF(SCStudyInterfaceRef sc)
         // UPDATE VH SEARCH
         // ====================================================================
         if (!state->VH_Active) {
-            // Start VH search: high > prev_high
-            if (high > prev_high) {
+            // Start VH search: bodyclose > prev_high (of gewoon high > prev voor eerste)
+            if (close > prev_high) {
                 state->VH_Active = true;
                 state->VH_PeakHigh = high;
                 state->VH_PeakBar = barToProcess;
@@ -288,8 +288,8 @@ SCSFExport scsf_VHVLScanner_SingleTF(SCStudyInterfaceRef sc)
                 state->VH_ConfirmLevelBar = barToProcess;
                 
                 SCString msg;
-                msg.Format("VH SEARCH STARTED at bar %d: AnchorHigh=%.2f, ConfirmLvl=%.2f (LOW), Peak=%.2f",
-                    barToProcess, high, low, high);
+                msg.Format("VH SEARCH STARTED at bar %d: AnchorHigh=%.2f, ConfirmLvl=%.2f (LOW), Close(%.2f)>PrevHigh(%.2f)",
+                    barToProcess, high, low, close, prev_high);
                 sc.AddMessageToLog(msg, 0);
             }
         } else {
@@ -330,8 +330,8 @@ SCSFExport scsf_VHVLScanner_SingleTF(SCStudyInterfaceRef sc)
         // UPDATE VL SEARCH
         // ====================================================================
         if (!state->VL_Active) {
-            // Start VL search: low < prev_low
-            if (low < prev_low) {
+            // Start VL search: bodyclose < prev_low
+            if (close < prev_low) {
                 state->VL_Active = true;
                 state->VL_TroughLow = low;
                 state->VL_TroughBar = barToProcess;
@@ -340,8 +340,8 @@ SCSFExport scsf_VHVLScanner_SingleTF(SCStudyInterfaceRef sc)
                 state->VL_ConfirmLevelBar = barToProcess;
                 
                 SCString msg;
-                msg.Format("VL SEARCH STARTED at bar %d: AnchorLow=%.2f, ConfirmLvl=%.2f (HIGH), Trough=%.2f",
-                    barToProcess, low, high, low);
+                msg.Format("VL SEARCH STARTED at bar %d: AnchorLow=%.2f, ConfirmLvl=%.2f (HIGH), Close(%.2f)<PrevLow(%.2f)",
+                    barToProcess, low, high, close, prev_low);
                 sc.AddMessageToLog(msg, 0);
             }
         } else {
