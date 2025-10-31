@@ -737,6 +737,10 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
     // MANUAL RECALC TRIGGER
     // ========================================================================
     if (i_RecalcTrigger.GetYesNo()) {
+        SCString debugMsg;
+        debugMsg.Format("RECALC TRIGGER DETECTED AS YES! Starting manual recalc...");
+        sc.AddMessageToLog(debugMsg, 0);
+        
         int minutesBack = i_RecalcMinutes.GetInt();
         int barsBack = minutesBack * 4;  // 4 bars per minute (15-sec)
         int startBar = i - barsBack;
