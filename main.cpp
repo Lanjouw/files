@@ -751,6 +751,9 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         *p_5m_CurrentBar = s_HigherTFBar();
         *p_15m_CurrentBar = s_HigherTFBar();
         
+        // ZET LastProcessedBar TERUG zodat bars opnieuw verwerkt worden!
+        p_15s->LastProcessedBar = startBar - 1;
+        
         // Clear plots vanaf startBar
         for (int j = startBar; j < sc.ArraySize; j++) {
             sg_15s_VH[j] = 0;
@@ -781,11 +784,9 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         i_RecalcTrigger.SetYesNo(false);
         
         SCString msg;
-        msg.Format("MANUAL RECALC TRIGGERED: Cleared last %d minutes (%d bars), restarting from bar %d", 
+        msg.Format("MANUAL RECALC TRIGGERED: Cleared last %d minutes (%d bars), reprocessing from bar %d", 
                    minutesBack, barsBack, startBar);
         sc.AddMessageToLog(msg, 0);
-        
-        return;  // Exit en laat volgende call opnieuw beginnen
     }
 
     // Detect full recalculation: als we terug gaan in tijd, reset state
