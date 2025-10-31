@@ -324,7 +324,7 @@ void ScanHigherTFBar(
     
     // VH Search
     if (!scanner->VH_Active) {
-        if (close > prev_high) {
+        if (high > prev_high) {
             scanner->VH_Active = true;
             scanner->VH_PeakHigh = high;
             scanner->VH_PeakBar = barIndex;
@@ -341,8 +341,8 @@ void ScanHigherTFBar(
             }
             
             SCString msg;
-            msg.Format("[%s] *** VH SEARCH STARTED *** TFBar %d (15s:%d-%d), Close(%.2f)>PrevHigh(%.2f), Peak=%.2f, ConfirmLvl=%.2f (LOW@15s:%d)",
-                tfName, barIndex, tfBar->StartBar_15s, tfBar->EndBar_15s, close, prev_high, high, low, tfBar->LowBar_15s);
+            msg.Format("[%s] *** VH SEARCH STARTED *** TFBar %d (15s:%d-%d), High(%.2f)>PrevHigh(%.2f), Peak=%.2f, ConfirmLvl=%.2f (LOW@15s:%d)",
+                tfName, barIndex, tfBar->StartBar_15s, tfBar->EndBar_15s, high, prev_high, high, low, tfBar->LowBar_15s);
             sc.AddMessageToLog(msg, 0);
         }
     } else {
@@ -366,7 +366,7 @@ void ScanHigherTFBar(
     
     // VL Search
     if (!scanner->VL_Active) {
-        if (close < prev_low) {
+        if (low < prev_low) {
             scanner->VL_Active = true;
             scanner->VL_TroughLow = low;
             scanner->VL_TroughBar = barIndex;
@@ -383,8 +383,8 @@ void ScanHigherTFBar(
             }
             
             SCString msg;
-            msg.Format("[%s] *** VL SEARCH STARTED *** TFBar %d (15s:%d-%d), Close(%.2f)<PrevLow(%.2f), Trough=%.2f, ConfirmLvl=%.2f (HIGH@15s:%d)",
-                tfName, barIndex, tfBar->StartBar_15s, tfBar->EndBar_15s, close, prev_low, low, high, tfBar->HighBar_15s);
+            msg.Format("[%s] *** VL SEARCH STARTED *** TFBar %d (15s:%d-%d), Low(%.2f)<PrevLow(%.2f), Trough=%.2f, ConfirmLvl=%.2f (HIGH@15s:%d)",
+                tfName, barIndex, tfBar->StartBar_15s, tfBar->EndBar_15s, low, prev_low, low, high, tfBar->HighBar_15s);
             sc.AddMessageToLog(msg, 0);
         }
     } else {
@@ -869,7 +869,7 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
 
             // Update VH search
             if (!p_15s->VH_Active) {
-                if (close > prev_high) {
+                if (high > prev_high) {
                     p_15s->VH_Active = true;
                     p_15s->VH_PeakHigh = high;
                     p_15s->VH_PeakBar = barToProcess;
@@ -878,8 +878,8 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
                     
                     if (i_DetailedLog.GetYesNo()) {
                         SCString msg;
-                        msg.Format("[15s] VH SEARCH STARTED at bar %d: Peak=%.2f, ConfirmLvl=%.2f (LOW), Close(%.2f)>PrevHigh(%.2f)",
-                            barToProcess, high, low, close, prev_high);
+                        msg.Format("[15s] VH SEARCH STARTED at bar %d: Peak=%.2f, ConfirmLvl=%.2f (LOW), High(%.2f)>PrevHigh(%.2f)",
+                            barToProcess, high, low, high, prev_high);
                         sc.AddMessageToLog(msg, 0);
                     }
                 }
@@ -902,7 +902,7 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
             
             // Update VL search
             if (!p_15s->VL_Active) {
-                if (close < prev_low) {
+                if (low < prev_low) {
                     p_15s->VL_Active = true;
                     p_15s->VL_TroughLow = low;
                     p_15s->VL_TroughBar = barToProcess;
@@ -911,8 +911,8 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
                     
                     if (i_DetailedLog.GetYesNo()) {
                         SCString msg;
-                        msg.Format("[15s] VL SEARCH STARTED at bar %d: Trough=%.2f, ConfirmLvl=%.2f (HIGH), Close(%.2f)<PrevLow(%.2f)",
-                            barToProcess, low, high, close, prev_low);
+                        msg.Format("[15s] VL SEARCH STARTED at bar %d: Trough=%.2f, ConfirmLvl=%.2f (HIGH), Low(%.2f)<PrevLow(%.2f)",
+                            barToProcess, low, high, low, prev_low);
                         sc.AddMessageToLog(msg, 0);
                     }
                 }
