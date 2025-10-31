@@ -504,9 +504,9 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
     
     // Dashboard
     SCInputRef i_DashboardEnabled = sc.Input[60];
-    SCInputRef i_DashboardCorner = sc.Input[61];
-    SCInputRef i_DashboardOffsetBars = sc.Input[62];
-    SCInputRef i_DashboardOffsetTicks = sc.Input[63];
+    SCInputRef i_DashboardFixed = sc.Input[61];
+    SCInputRef i_DashboardHorizontalPos = sc.Input[62];
+    SCInputRef i_DashboardVerticalPos = sc.Input[63];
     SCInputRef i_DashboardFontSize = sc.Input[64];
     SCInputRef i_DashboardBgColor = sc.Input[65];
     SCInputRef i_DashboardTextColor = sc.Input[66];
@@ -618,13 +618,12 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         // Dashboard Inputs
         i_DashboardEnabled.Name = "Dashboard: Enabled";
         i_DashboardEnabled.SetYesNo(true);
-        i_DashboardCorner.Name = "Dashboard: Corner Position";
-        i_DashboardCorner.SetCustomInputStrings("Top-Right;Top-Left;Bottom-Right;Bottom-Left");
-        i_DashboardCorner.SetCustomInputIndex(0);  // Top-Right default
-        i_DashboardOffsetBars.Name = "Dashboard: Offset (Bars from right edge)";
-        i_DashboardOffsetBars.SetInt(5);
-        i_DashboardOffsetTicks.Name = "Dashboard: Offset (Ticks from top/bottom)";
-        i_DashboardOffsetTicks.SetInt(20);
+        i_DashboardFixed.Name = "Dashboard: Fixed Position (stays in corner)";
+        i_DashboardFixed.SetYesNo(true);
+        i_DashboardHorizontalPos.Name = "Dashboard: Horizontal Position %";
+        i_DashboardHorizontalPos.SetInt(2);  // 2% from left = bottom-left corner
+        i_DashboardVerticalPos.Name = "Dashboard: Vertical Position %";
+        i_DashboardVerticalPos.SetInt(95);  // 95% = near bottom
         i_DashboardFontSize.Name = "Dashboard: Font Size";
         i_DashboardFontSize.SetInt(12);
         i_DashboardBgColor.Name = "Dashboard: Background Color";
@@ -1294,8 +1293,6 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
     if (i == sc.ArraySize - 1 && i_DashboardEnabled.GetYesNo()) {
         const int DASHBOARD_DRAWING = 600001;
         
-        sc.AddMessageToLog("Drawing dashboard...", 0);
-        
         SCString dashboardText;
         dashboardText = "VH/VL STATUS\n";
         dashboardText += "━━━━━━━━━━━━━━━━━━\n";
@@ -1396,24 +1393,52 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         tool.DrawingType = DRAWING_TEXT;
         tool.LineNumber = DASHBOARD_DRAWING;
         
-        // Calculate position based on corner selection
-        int corner = i_DashboardCorner.GetIndex();
-        int offsetBars = i_DashboardOffsetBars.GetInt();
-        int offsetTicks = i_DashboardOffsetTicks.GetInt();
+        // Calculate position
+        bool useFixed = i_DashboardFixed.GetYesNo();
         
-        // DateTime position (horizontal)
-        int barIndex = i - offsetBars;
-        if (barIndex < 0) barIndex = 0;
-        tool.BeginDateTime = sc.BaseDateTimeIn[barIndex];
-        
-        // Value position (vertical)
-        float tickOffset = offsetTicks * sc.TickSize;
-        if (corner == 0 || corner == 1) {
-            // Top positions
-            tool.BeginValue = sc.High[i] + tickOffset;
+        if (useFixed) {
+            // FIXED POSITION MODE - stays in same place on screen
+            // Get visible chart range
+            int firstVisibleBar = sc.IndexOfFirstVisibleBar;
+            int lastVisibleBar = sc.IndexOfLastVisibleBar;
+            if (lastVisibleBar <= 0) lastVisibleBar = i;
+            if (firstVisibleBar < 0) firstVisibleBar = 0;
+            
+            int visibleBars = lastVisibleBar - firstVisibleBar;
+            if (visibleBars <= 0) visibleBars = 100;  // fallback
+            
+            // Horizontal position (0-100%)
+            float horizPercent = i_DashboardHorizontalPos.GetInt() / 100.0f;
+            int barOffset = (int)(visibleBars * horizPercent);
+            int targetBar = firstVisibleBar + barOffset;
+            if (targetBar > i) targetBar = i;
+            if (targetBar < 0) targetBar = 0;
+            
+            tool.BeginDateTime = sc.BaseDateTimeIn[targetBar];
+            
+            // Vertical position (0-100%)
+            float vertPercent = i_DashboardVerticalPos.GetInt() / 100.0f;
+            
+            // Find visible price range
+            float visibleHigh = sc.High[firstVisibleBar];
+            float visibleLow = sc.Low[firstVisibleBar];
+            for (int b = firstVisibleBar; b <= lastVisibleBar && b <= i; b++) {
+                if (sc.High[b] > visibleHigh) visibleHigh = sc.High[b];
+                if (sc.Low[b] < visibleLow) visibleLow = sc.Low[b];
+            }
+            
+            float priceRange = visibleHigh - visibleLow;
+            tool.BeginValue = visibleLow + (priceRange * vertPercent);
+            
+            tool.TextAlignment = DT_LEFT;
         } else {
-            // Bottom positions
-            tool.BeginValue = sc.Low[i] - tickOffset;
+            // FLOATING MODE - moves with chart (old behavior)
+            int offsetBars = 5;
+            int barIndex = i - offsetBars;
+            if (barIndex < 0) barIndex = 0;
+            tool.BeginDateTime = sc.BaseDateTimeIn[barIndex];
+            tool.BeginValue = sc.High[i] + (20 * sc.TickSize);
+            tool.TextAlignment = DT_RIGHT;
         }
         
         tool.UseRelativeVerticalValues = 0;
@@ -1424,23 +1449,15 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         tool.FontBold = 1;
         tool.AddMethod = UTAM_ADD_OR_ADJUST;
         tool.ReverseTextColor = 0;
-        
-        // Text alignment based on corner
-        if (corner == 0 || corner == 2) {
-            // Right corners
-            tool.TextAlignment = DT_RIGHT;
-        } else {
-            // Left corners
-            tool.TextAlignment = DT_LEFT;
-        }
-        
         tool.TransparencyLevel = 50;  // Semi-transparent background
         
         sc.UseTool(tool);
         
-        SCString logMsg;
-        logMsg.Format("Dashboard drawn at bar %d, corner=%d, offsetBars=%d, offsetTicks=%d", 
-                      i, corner, offsetBars, offsetTicks);
-        sc.AddMessageToLog(logMsg, 0);
+        if (i_DetailedLog.GetYesNo()) {
+            SCString logMsg;
+            logMsg.Format("Dashboard drawn: Fixed=%d, H%%=%d, V%%=%d", 
+                          useFixed, i_DashboardHorizontalPos.GetInt(), i_DashboardVerticalPos.GetInt());
+            sc.AddMessageToLog(logMsg, 0);
+        }
     }
 }

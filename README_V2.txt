@@ -26,13 +26,15 @@ VERSION 2 - NEW FEATURES:
 DASHBOARD SETTINGS:
 
 Input [60] - Dashboard: Enabled (Yes/No)
-Input [61] - Dashboard: Corner Position
-             Options: Top-Right / Top-Left / Bottom-Right / Bottom-Left
-             Default: Top-Right
-Input [62] - Dashboard: Offset (Bars from right edge)
-             Default: 5 bars (move dashboard left/right)
-Input [63] - Dashboard: Offset (Ticks from top/bottom)
-             Default: 20 ticks (move dashboard up/down)
+Input [61] - Dashboard: Fixed Position (stays in corner)
+             Yes = Fixed in corner (recommended)
+             No = Floats with chart
+Input [62] - Dashboard: Horizontal Position %
+             0% = Far left, 100% = Far right
+             Default: 2% (left side)
+Input [63] - Dashboard: Vertical Position %
+             0% = Top, 100% = Bottom
+             Default: 95% (bottom)
 Input [64] - Dashboard: Font Size (default: 12)
 Input [65] - Dashboard: Background Color (default: Black)
 Input [66] - Dashboard: Text Color (default: White)
@@ -41,10 +43,17 @@ Input [70] - ATR: Period (number of bars, default: 20)
 Input [71] - ATR: Show 1-Min Candle Size Multiplier (Yes/No)
 
 HOW TO POSITION:
-1. Choose corner: Top-Right, Top-Left, Bottom-Right, or Bottom-Left
-2. Adjust "Offset Bars" to move horizontally (higher = more left)
-3. Adjust "Offset Ticks" to move vertically (higher = more up/down)
-4. Dashboard updates in real-time!
+✓ FIXED MODE (Recommended - Dashboard stays in place):
+  - Set "Fixed Position" = Yes
+  - Bottom-Left:  H=2%,  V=95%  ← DEFAULT
+  - Bottom-Right: H=98%, V=95%
+  - Top-Left:     H=2%,  V=5%
+  - Top-Right:    H=98%, V=5%
+  - Center:       H=50%, V=50%
+  
+✓ FLOATING MODE (Dashboard moves with chart):
+  - Set "Fixed Position" = No
+  - Appears near current price action
 
 ========================================================================
 FILES TO SHARE:
