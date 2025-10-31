@@ -386,6 +386,26 @@ void ScanHigherTFBar(
                     sc.AddMessageToLog(msg2, 0);
                 }
             }
+            
+            // CRITICAL: Check if confirmation candle itself can START new VL search!
+            if (!scanner->VL_Active && close < prev_low) {
+                scanner->VL_Active = true;
+                scanner->VL_TroughLow = low;
+                scanner->VL_TroughBar = barIndex;
+                scanner->VL_AnchorLow = low;
+                scanner->VL_ConfirmLevel = high;
+                scanner->VL_ConfirmLevelBar = barIndex;
+                scanner->VL_ConfirmLevelBar_15s = tfBar->HighBar_15s;
+                
+                if (scanner->VL_StartBar_15s < 0) {
+                    scanner->VL_StartBar_15s = exact15sBar;  // Start from VH plot!
+                }
+                
+                SCString msg3;
+                msg3.Format("[%s] *** VL SEARCH STARTED IMMEDIATELY *** Same candle that confirmed VH! TFBar %d, Close(%.2f)<PrevLow(%.2f)",
+                    tfName, barIndex, close, prev_low);
+                sc.AddMessageToLog(msg3, 0);
+            }
         }
     }
     
@@ -429,6 +449,26 @@ void ScanHigherTFBar(
                     msg2.Format("[%s]     VH search was already broken, RESET", tfName);
                     sc.AddMessageToLog(msg2, 0);
                 }
+            }
+            
+            // CRITICAL: Check if confirmation candle itself can START new VH search!
+            if (!scanner->VH_Active && close > prev_high) {
+                scanner->VH_Active = true;
+                scanner->VH_PeakHigh = high;
+                scanner->VH_PeakBar = barIndex;
+                scanner->VH_AnchorHigh = high;
+                scanner->VH_ConfirmLevel = low;
+                scanner->VH_ConfirmLevelBar = barIndex;
+                scanner->VH_ConfirmLevelBar_15s = tfBar->LowBar_15s;
+                
+                if (scanner->VH_StartBar_15s < 0) {
+                    scanner->VH_StartBar_15s = exact15sBar;  // Start from VL plot!
+                }
+                
+                SCString msg3;
+                msg3.Format("[%s] *** VH SEARCH STARTED IMMEDIATELY *** Same candle that confirmed VL! TFBar %d, Close(%.2f)>PrevHigh(%.2f)",
+                    tfName, barIndex, close, prev_high);
+                sc.AddMessageToLog(msg3, 0);
             }
         }
     }
@@ -1029,6 +1069,21 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
                         p_15s->VL_Active = false;
                     }
                 }
+                
+                // CRITICAL: Check if confirmation candle itself can START new VL search!
+                if (!p_15s->VL_Active && close < prev_low) {
+                    p_15s->VL_Active = true;
+                    p_15s->VL_TroughLow = low;
+                    p_15s->VL_TroughBar = barToProcess;
+                    p_15s->VL_AnchorLow = low;
+                    p_15s->VL_ConfirmLevel = high;
+                    p_15s->VL_ConfirmLevelBar = barToProcess;
+                    
+                    SCString msg;
+                    msg.Format("[15s] *** VL SEARCH STARTED IMMEDIATELY *** Same candle that confirmed VH! Bar %d, Close(%.2f)<PrevLow(%.2f)",
+                        barToProcess, close, prev_low);
+                    sc.AddMessageToLog(msg, 0);
+                }
             }
             
             // Handle VL confirmation
@@ -1057,6 +1112,21 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
                     if (vhBroken) {
                         p_15s->VH_Active = false;
                     }
+                }
+                
+                // CRITICAL: Check if confirmation candle itself can START new VH search!
+                if (!p_15s->VH_Active && close > prev_high) {
+                    p_15s->VH_Active = true;
+                    p_15s->VH_PeakHigh = high;
+                    p_15s->VH_PeakBar = barToProcess;
+                    p_15s->VH_AnchorHigh = high;
+                    p_15s->VH_ConfirmLevel = low;
+                    p_15s->VH_ConfirmLevelBar = barToProcess;
+                    
+                    SCString msg;
+                    msg.Format("[15s] *** VH SEARCH STARTED IMMEDIATELY *** Same candle that confirmed VL! Bar %d, Close(%.2f)>PrevHigh(%.2f)",
+                        barToProcess, close, prev_high);
+                    sc.AddMessageToLog(msg, 0);
                 }
             }
 
