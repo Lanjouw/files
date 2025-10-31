@@ -1,0 +1,75 @@
+========================================================================
+DEBUG: MISSING VH AFTER VL CONFIRMATION
+========================================================================
+
+ISSUE: 1-min VH wordt gemist na VL bevestiging, zelfs als de 
+       bevestigingscandle zelf een VH anker zou moeten zijn.
+
+FIX IMPLEMENTED:
+- Na VL plot checkt de code nu METEEN of dezelfde candle ook VH start
+- Dit gebeurt voor ALLE timeframes (15s, 1m, 5m, 15m)
+
+DEBUG LOGGING TOEGEVOEGD:
+========================================================================
+
+Wanneer een VL wordt geplot, zie je nu:
+
+1. "[1MIN] *** VL PLOTTED ***" 
+   → VL is bevestigd
+
+2. "[1MIN] POST-VL CHECK: VH_Active=X, Close=Y, PrevHigh=Z, Test=(Close>PrevHigh)=W"
+   → Check of VH search kan starten
+   → VH_Active moet 0 zijn
+   → Close moet > PrevHigh zijn voor VH start
+   
+3a. ALS VH start: "[1MIN] *** VH SEARCH STARTED IMMEDIATELY ***"
+    → VH search is gestart op dezelfde candle als VL plot!
+    
+3b. ALS NIET: "[1MIN] POST-VL: VH start condition NOT met (Close X NOT > PrevHigh Y)"
+    → Reden waarom VH niet start
+
+4. Volgende candle: "[1MIN] VH Check: Active=1, Close=X, ConfirmLvl=Y, Close<Confirm=Z => Confirmed=W"
+   → Check of VH wordt bevestigd
+   → Close moet < ConfirmLevel zijn voor bevestiging
+
+========================================================================
+DEBUGGING STAPPEN:
+========================================================================
+
+1. Zet "Enable Detailed Logging" op YES in study settings
+
+2. Wacht tot je een VL plot ziet waar de VH daarna wordt gemist
+
+3. Zoek in de log (Global Settings > Message Log) naar:
+   - "*** VL PLOTTED ***"
+   - Direct daarna: "POST-VL CHECK"
+   
+4. Check de waardes:
+   a. Is VH_Active = 0? (moet 0 zijn)
+   b. Is Close > PrevHigh? (moet waar zijn voor VH start)
+   c. Als beide waar: wordt "VH SEARCH STARTED IMMEDIATELY" getoond?
+   d. Als VH search start: wordt de volgende candle correct gecheckt?
+
+5. Stuur de relevante log regels (2-3 candles voor en na de VL plot)
+
+========================================================================
+MOGELIJKE OORZAKEN ALS VH NOG STEEDS GEMIST:
+========================================================================
+
+A. Close is NIET > PrevHigh
+   → Candle is geen geldig VH anker
+   → Dit is correct gedrag
+
+B. VH_Active is al 1
+   → Er is al een VH search actief
+   → Stale search die gereset moet worden?
+
+C. VH search start WEL, maar bevestiging faalt
+   → Volgende candle sluit niet onder ConfirmLevel
+   → Check de ConfirmLevel waarde in log
+
+D. Timing issue met bar processing
+   → Mogelijk probleem met TFBarCounter
+   → Check bar indices in log
+
+========================================================================

@@ -345,6 +345,22 @@ void ScanHigherTFBar(
                         scanner->WhatToPlotNext == s_TimeframeScanner::PLOT_VL &&
                         scanner->LastPlottedType != s_TimeframeScanner::LAST_VL);
     
+    // Debug confirmation checks
+    if (scanner->VH_Active && detailedLog) {
+        SCString vhCheck;
+        vhCheck.Format("[%s] VH Check: Active=1, Close=%.2f, ConfirmLvl=%.2f, Close<Confirm=%d, NextPlot=%d, LastPlot=%d => Confirmed=%d",
+            tfName, close, scanner->VH_ConfirmLevel, (close < scanner->VH_ConfirmLevel),
+            scanner->WhatToPlotNext, scanner->LastPlottedType, vh_confirmed);
+        sc.AddMessageToLog(vhCheck, 0);
+    }
+    if (scanner->VL_Active && detailedLog) {
+        SCString vlCheck;
+        vlCheck.Format("[%s] VL Check: Active=1, Close=%.2f, ConfirmLvl=%.2f, Close>Confirm=%d, NextPlot=%d, LastPlot=%d => Confirmed=%d",
+            tfName, close, scanner->VL_ConfirmLevel, (close > scanner->VL_ConfirmLevel),
+            scanner->WhatToPlotNext, scanner->LastPlottedType, vl_confirmed);
+        sc.AddMessageToLog(vlCheck, 0);
+    }
+    
     // Handle VH confirmation
     if (vh_confirmed) {
         int startScan = scanner->VH_StartBar_15s;
@@ -452,6 +468,11 @@ void ScanHigherTFBar(
             }
             
             // CRITICAL: Check if confirmation candle itself can START new VH search!
+            SCString debugCheck;
+            debugCheck.Format("[%s] POST-VL CHECK: VH_Active=%d, Close=%.2f, PrevHigh=%.2f, Test=(Close>PrevHigh)=%d",
+                tfName, scanner->VH_Active, close, prev_high, (close > prev_high));
+            sc.AddMessageToLog(debugCheck, 0);
+            
             if (!scanner->VH_Active && close > prev_high) {
                 scanner->VH_Active = true;
                 scanner->VH_PeakHigh = high;
@@ -466,8 +487,17 @@ void ScanHigherTFBar(
                 }
                 
                 SCString msg3;
-                msg3.Format("[%s] *** VH SEARCH STARTED IMMEDIATELY *** Same candle that confirmed VL! TFBar %d, Close(%.2f)>PrevHigh(%.2f)",
-                    tfName, barIndex, close, prev_high);
+                msg3.Format("[%s] *** VH SEARCH STARTED IMMEDIATELY *** Same candle that confirmed VL! TFBar %d, AnchorHigh=%.2f, ConfirmLevel(LOW)=%.2f, Close(%.2f)>PrevHigh(%.2f)",
+                    tfName, barIndex, high, low, close, prev_high);
+                sc.AddMessageToLog(msg3, 0);
+            } else if (scanner->VH_Active) {
+                SCString msg3;
+                msg3.Format("[%s] POST-VL: VH already active, skipping immediate start check", tfName);
+                sc.AddMessageToLog(msg3, 0);
+            } else {
+                SCString msg3;
+                msg3.Format("[%s] POST-VL: VH start condition NOT met (Close %.2f NOT > PrevHigh %.2f)", 
+                    tfName, close, prev_high);
                 sc.AddMessageToLog(msg3, 0);
             }
         }
