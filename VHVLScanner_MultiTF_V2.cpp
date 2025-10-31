@@ -1290,6 +1290,8 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
     if (i == sc.ArraySize - 1 && i_DashboardEnabled.GetYesNo()) {
         const int DASHBOARD_DRAWING = 600001;
         
+        sc.AddMessageToLog("Drawing dashboard...", 0);
+        
         SCString dashboardText;
         dashboardText = "VH/VL STATUS\n";
         dashboardText += "━━━━━━━━━━━━━━━━━━\n";
@@ -1389,8 +1391,11 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         tool.ChartNumber = sc.ChartNumber;
         tool.DrawingType = DRAWING_TEXT;
         tool.LineNumber = DASHBOARD_DRAWING;
-        tool.BeginDateTime = -2;  // Use X/Y positioning
-        tool.BeginValue = -2;
+        
+        // Use current bar time and a visible price level
+        tool.BeginDateTime = sc.BaseDateTimeIn[i];
+        tool.BeginValue = sc.High[i] + (5 * sc.TickSize);  // 5 ticks above current high
+        
         tool.UseRelativeVerticalValues = 0;
         tool.Text = dashboardText;
         tool.Color = i_DashboardTextColor.GetColor();
@@ -1400,11 +1405,12 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         tool.AddMethod = UTAM_ADD_OR_ADJUST;
         tool.ReverseTextColor = 0;
         tool.TextAlignment = DT_LEFT;
-        
-        // Position using pixel coordinates
-        tool.BeginDateTime = i_DashboardX.GetInt();
-        tool.BeginValue = i_DashboardY.GetInt();
+        tool.TransparencyLevel = 50;  // Semi-transparent background
         
         sc.UseTool(tool);
+        
+        SCString logMsg;
+        logMsg.Format("Dashboard drawn at bar %d with text: %s", i, dashboardText.GetChars());
+        sc.AddMessageToLog(logMsg, 0);
     }
 }
