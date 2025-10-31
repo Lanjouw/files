@@ -451,6 +451,9 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
     SCInputRef i_15s_SymbolSize = sc.Input[2];
     SCInputRef i_15s_SymbolOffset = sc.Input[3];
     SCInputRef i_15s_DrawStyle = sc.Input[4];
+    SCInputRef i_15s_ZigzagEnabled = sc.Input[5];
+    SCInputRef i_15s_ZigzagColor = sc.Input[6];
+    SCInputRef i_15s_ZigzagWidth = sc.Input[7];
     
     // 1-min
     SCInputRef i_1m_Enabled = sc.Input[10];
@@ -458,6 +461,9 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
     SCInputRef i_1m_SymbolSize = sc.Input[12];
     SCInputRef i_1m_SymbolOffset = sc.Input[13];
     SCInputRef i_1m_DrawStyle = sc.Input[14];
+    SCInputRef i_1m_ZigzagEnabled = sc.Input[15];
+    SCInputRef i_1m_ZigzagColor = sc.Input[16];
+    SCInputRef i_1m_ZigzagWidth = sc.Input[17];
     
     // 5-min
     SCInputRef i_5m_Enabled = sc.Input[20];
@@ -465,6 +471,9 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
     SCInputRef i_5m_SymbolSize = sc.Input[22];
     SCInputRef i_5m_SymbolOffset = sc.Input[23];
     SCInputRef i_5m_DrawStyle = sc.Input[24];
+    SCInputRef i_5m_ZigzagEnabled = sc.Input[25];
+    SCInputRef i_5m_ZigzagColor = sc.Input[26];
+    SCInputRef i_5m_ZigzagWidth = sc.Input[27];
     
     // 15-min
     SCInputRef i_15m_Enabled = sc.Input[30];
@@ -472,27 +481,13 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
     SCInputRef i_15m_SymbolSize = sc.Input[32];
     SCInputRef i_15m_SymbolOffset = sc.Input[33];
     SCInputRef i_15m_DrawStyle = sc.Input[34];
+    SCInputRef i_15m_ZigzagEnabled = sc.Input[35];
+    SCInputRef i_15m_ZigzagColor = sc.Input[36];
+    SCInputRef i_15m_ZigzagWidth = sc.Input[37];
     
     // General
     SCInputRef i_LineWidth = sc.Input[50];
     SCInputRef i_DetailedLog = sc.Input[51];
-    
-    // Zigzag lines
-    SCInputRef i_15s_ZigzagEnabled = sc.Input[60];
-    SCInputRef i_15s_ZigzagColor = sc.Input[61];
-    SCInputRef i_15s_ZigzagWidth = sc.Input[62];
-    
-    SCInputRef i_1m_ZigzagEnabled = sc.Input[63];
-    SCInputRef i_1m_ZigzagColor = sc.Input[64];
-    SCInputRef i_1m_ZigzagWidth = sc.Input[65];
-    
-    SCInputRef i_5m_ZigzagEnabled = sc.Input[66];
-    SCInputRef i_5m_ZigzagColor = sc.Input[67];
-    SCInputRef i_5m_ZigzagWidth = sc.Input[68];
-    
-    SCInputRef i_15m_ZigzagEnabled = sc.Input[69];
-    SCInputRef i_15m_ZigzagColor = sc.Input[70];
-    SCInputRef i_15m_ZigzagWidth = sc.Input[71];
 
     // ========================================================================
     // SUBGRAPHS
