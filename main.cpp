@@ -695,7 +695,10 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
     // ========================================================================
     // MANUAL RECALC TRIGGER - FIXED: Alleen op laatste bar checken!
     // ========================================================================
-    if (i == sc.ArraySize - 1 && i_RecalcTrigger.GetYesNo()) {
+    static bool recalcTriggered = false;
+    if (i == sc.ArraySize - 1 && i_RecalcTrigger.GetYesNo() && !recalcTriggered) {
+        recalcTriggered = true;  // Voorkom spam
+        
         SCString debugMsg;
         debugMsg.Format("=== RECALC TRIGGER ACTIVATED === Starting manual recalc for last %d minutes...", 
                        i_RecalcMinutes.GetInt());
@@ -705,9 +708,6 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         int barsBack = minutesBack * 4;  // 4 bars per minute (15-sec)
         int startBar = i - barsBack;
         if (startBar < 2) startBar = 2;
-        
-        debugMsg.Format("  Clearing from bar %d to %d (%d bars)", startBar, i, i - startBar + 1);
-        sc.AddMessageToLog(debugMsg, 0);
         
         // Reset ALL state
         *p_15s = s_TimeframeScanner();
@@ -746,14 +746,15 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         
         // Reset trigger
         i_RecalcTrigger.SetYesNo(false);
+        recalcTriggered = false;  // Reset spam flag
         
-        // Force full recalc door LastProcessedBar VOOR de cleared range te zetten
+        // Force full recalc
         p_15s->LastProcessedBar = startBar - 5;
         p_1m->LastProcessedBar = -1;
         p_5m->LastProcessedBar = -1;
         p_15m->LastProcessedBar = -1;
         
-        debugMsg.Format("=== RECALC COMPLETE === Plots cleared, recalculation will start from bar %d", startBar);
+        debugMsg.Format("=== RECALC COMPLETE === Cleared, restarting from bar %d", startBar);
         sc.AddMessageToLog(debugMsg, 0);
         
         return;
@@ -1133,14 +1134,6 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         SCDateTime currentBarTime = sc.BaseDateTimeIn[i];
         
         if (ShouldStartNewBar(currentBarTime, 5, p_5m_CurrentBar->StartTime)) {
-            // DEBUG: Log new bar detection
-            if (i == sc.ArraySize - 1) {
-                SCString debugMsg;
-                debugMsg.Format("[5MIN] NEW 5-MIN BAR STARTING at 15s bar %d, processing previous bar (StartTime=%d, IsComplete=%d)",
-                    i, (p_5m_CurrentBar->StartTime != 0 ? 1 : 0), p_5m_CurrentBar->IsComplete);
-                sc.AddMessageToLog(debugMsg, 0);
-            }
-            
             p_5m_CurrentBar->IsComplete = true;
             
             if (p_5m_CurrentBar->StartTime != 0) {
@@ -1148,10 +1141,6 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
                                i_5m_SymbolOffset.GetInt(), "5MIN", i_DetailedLog.GetYesNo(),
                                i_5m_ZigzagEnabled.GetYesNo(), i_5m_ZigzagColor.GetColor(),
                                i_5m_ZigzagWidth.GetInt(), 320000);
-            } else {
-                if (i == sc.ArraySize - 1) {
-                    sc.AddMessageToLog("[5MIN] Skipping scan - previous bar has no StartTime", 0);
-                }
             }
             
             p_5m_CurrentBar->SaveAsPrevious();
