@@ -1133,6 +1133,14 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         SCDateTime currentBarTime = sc.BaseDateTimeIn[i];
         
         if (ShouldStartNewBar(currentBarTime, 5, p_5m_CurrentBar->StartTime)) {
+            // DEBUG: Log new bar detection
+            if (i == sc.ArraySize - 1) {
+                SCString debugMsg;
+                debugMsg.Format("[5MIN] NEW 5-MIN BAR STARTING at 15s bar %d, processing previous bar (StartTime=%d, IsComplete=%d)",
+                    i, (p_5m_CurrentBar->StartTime != 0 ? 1 : 0), p_5m_CurrentBar->IsComplete);
+                sc.AddMessageToLog(debugMsg, 0);
+            }
+            
             p_5m_CurrentBar->IsComplete = true;
             
             if (p_5m_CurrentBar->StartTime != 0) {
@@ -1140,6 +1148,10 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
                                i_5m_SymbolOffset.GetInt(), "5MIN", i_DetailedLog.GetYesNo(),
                                i_5m_ZigzagEnabled.GetYesNo(), i_5m_ZigzagColor.GetColor(),
                                i_5m_ZigzagWidth.GetInt(), 320000);
+            } else {
+                if (i == sc.ArraySize - 1) {
+                    sc.AddMessageToLog("[5MIN] Skipping scan - previous bar has no StartTime", 0);
+                }
             }
             
             p_5m_CurrentBar->SaveAsPrevious();
