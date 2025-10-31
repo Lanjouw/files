@@ -16,14 +16,16 @@ struct s_ScannerState {
     bool VH_Active = false;
     float VH_PeakHigh = 0.0f;
     int VH_PeakBar = -1;
-    float VH_ConfirmLevel = 0.0f;
+    float VH_AnchorHigh = 0.0f;       // HIGH van huidige anker candle (voor nieuwe anker check)
+    float VH_ConfirmLevel = 0.0f;     // LOW van huidige anker candle (voor bevestiging)
     int VH_ConfirmLevelBar = -1;
     
     // VL search
     bool VL_Active = false;
     float VL_TroughLow = 0.0f;
     int VL_TroughBar = -1;
-    float VL_ConfirmLevel = 0.0f;
+    float VL_AnchorLow = 0.0f;        // LOW van huidige anker candle (voor nieuwe anker check)
+    float VL_ConfirmLevel = 0.0f;     // HIGH van huidige anker candle (voor bevestiging)
     int VL_ConfirmLevelBar = -1;
     
     int LastProcessedBar = -1;
@@ -276,24 +278,23 @@ SCSFExport scsf_VHVLScanner_SingleTF(SCStudyInterfaceRef sc)
         // UPDATE VH SEARCH
         // ====================================================================
         if (!state->VH_Active) {
+            // Start VH search: high > prev_high
             if (high > prev_high) {
                 state->VH_Active = true;
                 state->VH_PeakHigh = high;
                 state->VH_PeakBar = barToProcess;
-                state->VH_ConfirmLevel = low;
+                state->VH_AnchorHigh = high;      // HIGH van eerste anker
+                state->VH_ConfirmLevel = low;     // LOW van eerste anker
                 state->VH_ConfirmLevelBar = barToProcess;
                 
-                if (i_DetailedLog.GetYesNo()) {
-                    SCString msg;
-                    msg.Format("VH SEARCH STARTED at bar %d: Peak=%.2f, ConfirmLvl=%.2f (LOW), High(%.2f)>PrevHigh(%.2f)",
-                        barToProcess, high, low, high, prev_high);
-                    sc.AddMessageToLog(msg, 0);
-                }
+                SCString msg;
+                msg.Format("VH SEARCH STARTED at bar %d: AnchorHigh=%.2f, ConfirmLvl=%.2f (LOW), Peak=%.2f",
+                    barToProcess, high, low, high);
+                sc.AddMessageToLog(msg, 0);
             }
         } else {
-            // Peak en ConfirmLevel APART updaten!
             bool peakUpdated = false;
-            bool confirmUpdated = false;
+            bool anchorUpdated = false;
             
             // Peak: altijd bij hogere high
             if (high > state->VH_PeakHigh) {
@@ -302,24 +303,24 @@ SCSFExport scsf_VHVLScanner_SingleTF(SCStudyInterfaceRef sc)
                 peakUpdated = true;
             }
             
-            // ConfirmLevel: alleen bij LAGERE low (laagste low van de hele search!)
-            if (low < state->VH_ConfirmLevel) {
-                state->VH_ConfirmLevel = low;
+            // ANKER update: alleen bij bodyclose > AnchorHigh!
+            if (close > state->VH_AnchorHigh) {
+                state->VH_AnchorHigh = high;      // HIGH van nieuwe anker
+                state->VH_ConfirmLevel = low;     // LOW van nieuwe anker
                 state->VH_ConfirmLevelBar = barToProcess;
-                confirmUpdated = true;
+                anchorUpdated = true;
             }
             
-            if (i_DetailedLog.GetYesNo() && (peakUpdated || confirmUpdated)) {
+            if (i_DetailedLog.GetYesNo() && (peakUpdated || anchorUpdated)) {
                 SCString msg;
-                if (peakUpdated && confirmUpdated) {
-                    msg.Format("VH UPDATED at bar %d: NewPeak=%.2f, NewConfirmLvl=%.2f (LOW)",
-                        barToProcess, high, low);
+                if (peakUpdated && anchorUpdated) {
+                    msg.Format("VH UPDATED at bar %d: NewPeak=%.2f, NewAnchor(High=%.2f, ConfirmLvl=%.2f)",
+                        barToProcess, high, high, low);
                 } else if (peakUpdated) {
-                    msg.Format("VH PEAK UPDATED at bar %d: NewPeak=%.2f (ConfirmLvl unchanged=%.2f)",
-                        barToProcess, high, state->VH_ConfirmLevel);
+                    msg.Format("VH PEAK UPDATED at bar %d: NewPeak=%.2f (Anchor unchanged)", barToProcess, high);
                 } else {
-                    msg.Format("VH CONFIRM UPDATED at bar %d: NewConfirmLvl=%.2f (Peak unchanged=%.2f)",
-                        barToProcess, low, state->VH_PeakHigh);
+                    msg.Format("VH ANCHOR UPDATED at bar %d: Close(%.2f)>AnchorHigh(%.2f), NewConfirmLvl=%.2f",
+                        barToProcess, close, state->VH_AnchorHigh, low);
                 }
                 sc.AddMessageToLog(msg, 0);
             }
@@ -329,24 +330,23 @@ SCSFExport scsf_VHVLScanner_SingleTF(SCStudyInterfaceRef sc)
         // UPDATE VL SEARCH
         // ====================================================================
         if (!state->VL_Active) {
+            // Start VL search: low < prev_low
             if (low < prev_low) {
                 state->VL_Active = true;
                 state->VL_TroughLow = low;
                 state->VL_TroughBar = barToProcess;
-                state->VL_ConfirmLevel = high;
+                state->VL_AnchorLow = low;        // LOW van eerste anker
+                state->VL_ConfirmLevel = high;    // HIGH van eerste anker
                 state->VL_ConfirmLevelBar = barToProcess;
                 
-                if (i_DetailedLog.GetYesNo()) {
-                    SCString msg;
-                    msg.Format("VL SEARCH STARTED at bar %d: Trough=%.2f, ConfirmLvl=%.2f (HIGH), Low(%.2f)<PrevLow(%.2f)",
-                        barToProcess, low, high, low, prev_low);
-                    sc.AddMessageToLog(msg, 0);
-                }
+                SCString msg;
+                msg.Format("VL SEARCH STARTED at bar %d: AnchorLow=%.2f, ConfirmLvl=%.2f (HIGH), Trough=%.2f",
+                    barToProcess, low, high, low);
+                sc.AddMessageToLog(msg, 0);
             }
         } else {
-            // Trough en ConfirmLevel APART updaten!
             bool troughUpdated = false;
-            bool confirmUpdated = false;
+            bool anchorUpdated = false;
             
             // Trough: altijd bij lagere low
             if (low < state->VL_TroughLow) {
@@ -355,24 +355,24 @@ SCSFExport scsf_VHVLScanner_SingleTF(SCStudyInterfaceRef sc)
                 troughUpdated = true;
             }
             
-            // ConfirmLevel: alleen bij HOGERE high (hoogste high van de hele search!)
-            if (high > state->VL_ConfirmLevel) {
-                state->VL_ConfirmLevel = high;
+            // ANKER update: alleen bij bodyclose < AnchorLow!
+            if (close < state->VL_AnchorLow) {
+                state->VL_AnchorLow = low;        // LOW van nieuwe anker
+                state->VL_ConfirmLevel = high;    // HIGH van nieuwe anker
                 state->VL_ConfirmLevelBar = barToProcess;
-                confirmUpdated = true;
+                anchorUpdated = true;
             }
             
-            if (i_DetailedLog.GetYesNo() && (troughUpdated || confirmUpdated)) {
+            if (i_DetailedLog.GetYesNo() && (troughUpdated || anchorUpdated)) {
                 SCString msg;
-                if (troughUpdated && confirmUpdated) {
-                    msg.Format("VL UPDATED at bar %d: NewTrough=%.2f, NewConfirmLvl=%.2f (HIGH)",
-                        barToProcess, low, high);
+                if (troughUpdated && anchorUpdated) {
+                    msg.Format("VL UPDATED at bar %d: NewTrough=%.2f, NewAnchor(Low=%.2f, ConfirmLvl=%.2f)",
+                        barToProcess, low, low, high);
                 } else if (troughUpdated) {
-                    msg.Format("VL TROUGH UPDATED at bar %d: NewTrough=%.2f (ConfirmLvl unchanged=%.2f)",
-                        barToProcess, low, state->VL_ConfirmLevel);
+                    msg.Format("VL TROUGH UPDATED at bar %d: NewTrough=%.2f (Anchor unchanged)", barToProcess, low);
                 } else {
-                    msg.Format("VL CONFIRM UPDATED at bar %d: NewConfirmLvl=%.2f (Trough unchanged=%.2f)",
-                        barToProcess, high, state->VL_TroughLow);
+                    msg.Format("VL ANCHOR UPDATED at bar %d: Close(%.2f)<AnchorLow(%.2f), NewConfirmLvl=%.2f",
+                        barToProcess, close, state->VL_AnchorLow, high);
                 }
                 sc.AddMessageToLog(msg, 0);
             }
