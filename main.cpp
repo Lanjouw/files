@@ -976,24 +976,10 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
                 shouldDrawLine = true;
                 lineBeginBar_15s = scanner->VH_ConfirmLevelBar_15s;
                 lineValue = scanner->VH_ConfirmLevel;
-                
-                if (i_DetailedLog.GetYesNo()) {
-                    SCString msg;
-                    msg.Format("[%s] Drawing VH confirm line: 15s_bar %d, level %.2f, Peak=%.2f",
-                        tfName, lineBeginBar_15s, lineValue, scanner->VH_PeakHigh);
-                    sc.AddMessageToLog(msg, 0);
-                }
             } else if (scanner->WhatToPlotNext == s_TimeframeScanner::PLOT_VL && scanner->VL_Active) {
                 shouldDrawLine = true;
                 lineBeginBar_15s = scanner->VL_ConfirmLevelBar_15s;
                 lineValue = scanner->VL_ConfirmLevel;
-                
-                if (i_DetailedLog.GetYesNo()) {
-                    SCString msg;
-                    msg.Format("[%s] Drawing VL confirm line: 15s_bar %d, level %.2f, Trough=%.2f",
-                        tfName, lineBeginBar_15s, lineValue, scanner->VL_TroughLow);
-                    sc.AddMessageToLog(msg, 0);
-                }
             }
             
             if (shouldDrawLine && lineBeginBar_15s >= 0) {
@@ -1030,24 +1016,10 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
                 shouldDrawLine = true;
                 lineBeginBar = p_15s->VH_ConfirmLevelBar;
                 lineValue = p_15s->VH_ConfirmLevel;
-                
-                if (i_DetailedLog.GetYesNo()) {
-                    SCString msg;
-                    msg.Format("[15s] Drawing VH confirm line: bar %d, level %.2f (LOW), VH_Peak=%.2f@%d",
-                        lineBeginBar, lineValue, p_15s->VH_PeakHigh, p_15s->VH_PeakBar);
-                    sc.AddMessageToLog(msg, 0);
-                }
             } else if (p_15s->WhatToPlotNext == s_TimeframeScanner::PLOT_VL && p_15s->VL_Active) {
                 shouldDrawLine = true;
                 lineBeginBar = p_15s->VL_ConfirmLevelBar;
                 lineValue = p_15s->VL_ConfirmLevel;
-                
-                if (i_DetailedLog.GetYesNo()) {
-                    SCString msg;
-                    msg.Format("[15s] Drawing VL confirm line: bar %d, level %.2f (HIGH), VL_Trough=%.2f@%d",
-                        lineBeginBar, lineValue, p_15s->VL_TroughLow, p_15s->VL_TroughBar);
-                    sc.AddMessageToLog(msg, 0);
-                }
             }
             
             if (shouldDrawLine && lineBeginBar >= 0) {
