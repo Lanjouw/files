@@ -236,6 +236,27 @@ struct s_ATRData {
         if (validCount == 0) return 0.0f;
         return sum / validCount;
     }
+    
+    // Calculate average candle size (simple High - Low)
+    float CalculateAverageCandleSize(int period) {
+        if (count < 1) return 0.0f;
+        
+        float sum = 0.0f;
+        int validCount = 0;
+        int numToCheck = (period < count) ? period : count;
+        
+        for (int i = 0; i < numToCheck; i++) {
+            int idx = (writeIndex - 1 - i + MAX_1MIN_HISTORY) % MAX_1MIN_HISTORY;
+            if (bars[idx].High == 0) continue;
+            
+            float candleSize = bars[idx].High - bars[idx].Low;
+            sum += candleSize;
+            validCount++;
+        }
+        
+        if (validCount == 0) return 0.0f;
+        return sum / validCount;
+    }
 };
 
 void DrawZigzagLine(
@@ -711,10 +732,10 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
         i_DashboardTextColor.Name = "Dashboard: Text Color";
         i_DashboardTextColor.SetColor(RGB(255, 255, 255));  // White
         
-        // ATR Inputs
-        i_ATR_Period.Name = "ATR: Period (number of bars)";
+        // Candle Size Average Inputs
+        i_ATR_Period.Name = "1-Min Avg: Period (number of bars)";
         i_ATR_Period.SetInt(20);
-        i_ATR_ShowMultiplier.Name = "ATR: Show 1-Min Candle Size Multiplier";
+        i_ATR_ShowMultiplier.Name = "1-Min Avg: Show Candle Size Info";
         i_ATR_ShowMultiplier.SetYesNo(true);
 
         // Subgraphs
@@ -1460,26 +1481,25 @@ SCSFExport scsf_VHVLScanner_MultiTF(SCStudyInterfaceRef sc)
             dashboardText += line;
         }
         
-        // ATR Multiplier for 1-MIN
+        // Average Candle Size for 1-MIN
         if (i_ATR_ShowMultiplier.GetYesNo() && i_1m_Enabled.GetYesNo() && p_1m_CurrentBar->StartTime != 0) {
             dashboardText += "━━━━━━━━━━━━━━━━━━\n";
             
-            // Calculate ATR on completed 1-min bars (proper ATR from history)
-            int atrPeriod = i_ATR_Period.GetInt();
-            float atr = p_ATRData->CalculateATR(atrPeriod);
-            
-            // Current developing 1-min candle size
+            int period = i_ATR_Period.GetInt();
+            float avgCandleSize = p_ATRData->CalculateAverageCandleSize(period);
             float currentCandleSize = p_1m_CurrentBar->High - p_1m_CurrentBar->Low;
             
-            if (atr > 0.001f) {
-                float multiplier = currentCandleSize / atr;
+            if (avgCandleSize > 0.001f && p_ATRData->count >= 2) {
+                float multiplier = currentCandleSize / avgCandleSize;
                 SCString line;
-                line.Format("1MIN: %.1fx ATR(%d)\n", multiplier, atrPeriod);
+                line.Format("1MIN Size: %.2f\n", currentCandleSize);
+                dashboardText += line;
+                line.Format("Avg(%d): %.2f (%.1fx)\n", period, avgCandleSize, multiplier);
                 dashboardText += line;
             } else {
                 // Not enough data yet
                 SCString line;
-                line.Format("1MIN: ATR(%d) loading...\n", atrPeriod);
+                line.Format("1MIN: Loading (%d/%d)\n", p_ATRData->count, period);
                 dashboardText += line;
             }
         }

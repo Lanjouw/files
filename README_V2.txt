@@ -16,13 +16,14 @@ VERSION 2 - NEW FEATURES:
    - Format: [MM:SS]
    - Updates in real-time
 
-3. ATR MULTIPLIER
-   - Shows current 1-min candle size vs ATR
-   - Proper ATR calculation on completed 1-min bars
-   - Uses True Range formula (considers gaps)
-   - Configurable period (default: 20 bars)
-   - Format: "1MIN: 2.3x ATR(20)"
-   - Helps assess current candle strength
+3. CANDLE SIZE AVERAGE (1-MIN)
+   - Shows current 1-min candle size
+   - Shows average size of last N bars (default: 20)
+   - Shows multiplier (current vs average)
+   - Format: 
+     "1MIN Size: 15.25"
+     "Avg(20): 12.50 (1.2x)"
+   - Helps assess if current candle is larger/smaller than average
 
 ========================================================================
 DASHBOARD SETTINGS:
@@ -41,18 +42,19 @@ Input [64] - Dashboard: Font Size (default: 12)
 Input [65] - Dashboard: Background Color (default: Black)
 Input [66] - Dashboard: Text Color (default: White)
 
-Input [70] - ATR: Period (number of 1-min bars, default: 20)
-             Calculates average of last N completed 1-min bars
-Input [71] - ATR: Show 1-Min Candle Size Multiplier (Yes/No)
+Input [70] - 1-Min Avg: Period (number of bars, default: 20)
+             Calculates average candle size of last N completed 1-min bars
+Input [71] - 1-Min Avg: Show Candle Size Info (Yes/No)
 
-ATR FORMULA:
-  True Range = max of:
-    1. High - Low
-    2. |High - Previous Close|
-    3. |Low - Previous Close|
+CANDLE SIZE CALCULATION:
+  Candle Size = High - Low
+  Average = Sum of last N candle sizes / N
+  Multiplier = Current candle size / Average
   
-  ATR(20) = Average of last 20 True Range values
-  Multiplier = Current 1-min bar size / ATR(20)
+  Example:
+    Current: 15.25 points
+    Average of last 20: 12.50 points
+    Multiplier: 1.2x (current candle is 20% larger than average)
 
 HOW TO POSITION:
 ✓ FIXED MODE (Recommended - Dashboard stays in place):
